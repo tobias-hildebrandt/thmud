@@ -1,4 +1,4 @@
-name: Cargo Build & Test
+name: Cargo Stable Build & Test
 
 on:
   push:
@@ -9,17 +9,11 @@ env:
 
 jobs:
   build_and_test:
-    name: Rust project - latest
+    name: cargo stable build and test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@v2.2.1
       - run: sudo apt install -y lld
       - run: cargo build --verbose
