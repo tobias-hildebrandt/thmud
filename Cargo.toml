@@ -3,4 +3,15 @@ name = "thmud"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[[bin]]
+name = "thmud"
+path = "src/bin/main.rs"
+
 [dependencies]
+bevy = { version = "0.16.0", features = ["dynamic_linking"] }
