@@ -1,4 +1,4 @@
-name: Cargo Build & Test
+name: Cargo Stable Build & Test
 
 on:
   push:
@@ -9,16 +9,20 @@ env:
 
 jobs:
   build_and_test:
-    name: Rust project - latest
+    name: cargo stable build and test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-      - run: cargo build --verbose
-      - run: cargo test --verbose
+      - name: checkout git
+        uses: actions/checkout@v4
+      - name: install rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: use rust cache
+        uses: Swatinem/rust-cache@v2.2.1
+      - name: install LLD
+        run: sudo apt install -y lld
+      - name: install bevy dependency libs
+        run: sudo apt install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libasound2-dev libudev-dev
+      - name: cargo build
+        run: cargo build --verbose
+      - name: cargo test
+        run: cargo test --verbose
