@@ -36,7 +36,7 @@
 # Roadmap
 - [x] set up git, cargo, github actions
 - [x] render shapes, singleplayer WASD movement
-- [ ] walls, collisions
+- [x] walls, collisions
 - [ ] add simple weapon and animation
 - [ ] enemy, hit-/hurt-boxes
 - [ ] (BIG) split into basic server/client
