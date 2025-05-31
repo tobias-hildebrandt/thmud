@@ -1,6 +1,11 @@
 name: Cargo Stable Build & Test
 
 on:
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
   pull_request:
 
 env:
