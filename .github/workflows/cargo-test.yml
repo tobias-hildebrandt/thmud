@@ -1,7 +1,6 @@
 name: Cargo Stable Build & Test
 
 on:
-  push:
   pull_request:
 
 env:
