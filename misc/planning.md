@@ -5,7 +5,7 @@
 - a bit like zelda 4 swords?
 - simple, royalty-free assets
   - public domain or permissive open source
-- basic enemies-
+- basic enemies
 - inventory
 - continuous coordinates
   - per-pixel effects??
@@ -17,7 +17,6 @@
 - procedurally generated levels
 - UI
   - HUD with all players' info (health, mana, ammo, etc)
-  -
 
 
 # Technical
@@ -35,8 +34,9 @@
 
 
 # Roadmap
-- [ ] set up git, cargo, github actions (?), general workflow
-- [ ] render rectangles, singleplayer WASD movement, walls, collisions
+- [x] set up git, cargo, github actions
+- [ ] render shapes, singleplayer WASD movement
+- [ ] walls, collisions
 - [ ] add simple weapon and animation
 - [ ] enemy, hit-/hurt-boxes
 - [ ] (BIG) split into basic server/client
