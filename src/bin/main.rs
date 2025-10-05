@@ -8,7 +8,12 @@ use bevy_rapier2d::{
     plugin::{NoUserData, RapierConfiguration, RapierContextInitialization, RapierPhysicsPlugin},
     render::RapierDebugRenderPlugin,
 };
-use thmud::{input_quit, movement, startup_spawn};
+use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiAllEntries};
+use thmud::{
+    input::{input_quit, movement},
+    physics::friction,
+    startup::startup_spawn,
+};
 
 fn main() {
     App::new()
@@ -34,6 +39,15 @@ fn main() {
             )
         })
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(FixedUpdate, (movement, input_quit))
+        .add_plugins((
+            PerfUiPlugin,
+            bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+            bevy::diagnostic::SystemInformationDiagnosticsPlugin,
+            bevy::diagnostic::EntityCountDiagnosticsPlugin,
+        ))
+        .add_systems(Startup, |mut commands: bevy::ecs::system::Commands| {
+            commands.spawn(PerfUiAllEntries::default());
+        })
+        .add_systems(FixedUpdate, (movement, friction, input_quit))
         .run();
 }
