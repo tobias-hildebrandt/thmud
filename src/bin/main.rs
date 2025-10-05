@@ -1,7 +1,8 @@
 use bevy::{
     DefaultPlugins,
-    app::{App, FixedUpdate, Startup},
+    app::{App, FixedUpdate, PluginGroup, Startup},
     math::Vec2,
+    window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };
 use bevy_rapier2d::{
     plugin::{NoUserData, RapierConfiguration, RapierContextInitialization, RapierPhysicsPlugin},
@@ -11,7 +12,16 @@ use thmud::{input_quit, movement, startup_spawn};
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "some bevy game".into(),
+                name: Some("some bevy game".into()),
+                resolution: (1920., 900.).into(),
+                position: WindowPosition::Centered(MonitorSelection::Primary),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
         .add_systems(Startup, startup_spawn)
         .add_plugins({
             let mut config = RapierConfiguration::new(1.);
