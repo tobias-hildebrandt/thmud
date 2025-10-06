@@ -2,7 +2,6 @@ use bevy::app::AppExit;
 
 use bevy::ecs::event::EventWriter;
 
-use bevy::log::tracing;
 use bevy::math::Vec2;
 
 use bevy::ecs::query::With;
@@ -17,61 +16,61 @@ use bevy::input::ButtonInput;
 
 use bevy::ecs::system::Res;
 
+const MOVE_SPEED: f32 = 500.0;
+const BOOST_MULTIPLIER: f32 = 2.5;
+
+pub fn boost(
+    buttons: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Velocity, With<crate::player::PlayerMarker>>,
+) {
+    if buttons.pressed(KeyCode::Space) {
+        let velocity = &mut query.single_mut().expect("no player").linvel;
+        let normalized = velocity.normalize_or_zero();
+        *velocity += normalized * (MOVE_SPEED * (BOOST_MULTIPLIER - 1.));
+    }
+}
+
 /// System handling player movement according to WASD keyboard input.
 pub fn movement(
     buttons: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Velocity, With<crate::player::PlayerMarker>>,
 ) {
-    let mut velocity = query.single_mut().expect("no player");
+    let velocity = &mut query.single_mut().expect("no player").linvel;
 
-    let mut input = Vec2::ZERO;
-
-    const MOVE_SPEED: f32 = 500.0;
+    let mut input: Option<Vec2> = None;
 
     if buttons.pressed(KeyCode::KeyW) {
-        input.y += 1.0;
+        input.get_or_insert_default().y += 1.0;
     }
     if buttons.pressed(KeyCode::KeyS) {
-        input.y -= 1.0;
+        input.get_or_insert_default().y -= 1.0;
     }
     if buttons.pressed(KeyCode::KeyA) {
-        input.x -= 1.0;
+        input.get_or_insert_default().x -= 1.0;
     }
     if buttons.pressed(KeyCode::KeyD) {
-        input.x += 1.0;
-    }
+        input.get_or_insert_default().x += 1.0;
+    };
 
-    input = input.normalize_or_zero();
+    // only need to do math if there is some input
+    if let Some(input) = input {
+        // velocity from input
+        let input_delta = input.normalize_or_zero() * MOVE_SPEED;
 
-    if input.length() > 0.1 {
-        let input_delta = input * MOVE_SPEED;
+        // don't allow to move faster than move speed or current speed
+        // (if we are currently moving faster due to some external cause)
+        let speed_limit = f32::max(velocity.length(), MOVE_SPEED);
 
-        let new = velocity.linvel + input_delta;
+        // if we simply add the input velocity
+        let velocity_with_input = *velocity + input_delta;
 
-        let doesnt_surpass = (new.length() - 0.1) <= MOVE_SPEED;
-
-        let slows_down = (new.length() - 0.1) < velocity.linvel.length();
-
-        // tracing::info!(
-        //     "simple?: {}, old: {:?} len {}, input: {:?} len {}, new: {:?} len {}",
-        //     if simple { "y" } else { "n" },
-        //     velocity.linvel,
-        //     velocity.linvel.length(),
-        //     input_delta,
-        //     input_delta.length(),
-        //     new,
-        //     new.length(),
-        // );
-
-        // use simple addition only if the result is not greater than max move speed OR it slows down the player
-        if doesnt_surpass || slows_down {
-            velocity.linvel = new;
-        } else if velocity.linvel.length() < MOVE_SPEED {
-            velocity.linvel = new.normalize_or_zero() * MOVE_SPEED;
-        }
-        // else use old magnitude with new angle
-        else {
-            velocity.linvel = Vec2::from_angle(new.to_angle()) * velocity.linvel.length();
+        // if we would violate the speed limit
+        if velocity_with_input.length() > speed_limit {
+            // cap at speed limit, but use new angle
+            *velocity = velocity_with_input.normalize_or_zero() * speed_limit;
+        } else {
+            // use the simple addition
+            *velocity = velocity_with_input;
         }
     }
 }

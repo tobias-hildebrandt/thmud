@@ -10,7 +10,7 @@ use bevy_rapier2d::{
 };
 use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiAllEntries};
 use thmud::{
-    input::{input_quit, movement},
+    input::{boost, input_quit, movement},
     physics::friction,
     startup::startup_spawn,
 };
@@ -48,6 +48,6 @@ fn main() {
         .add_systems(Startup, |mut commands: bevy::ecs::system::Commands| {
             commands.spawn(PerfUiAllEntries::default());
         })
-        .add_systems(FixedUpdate, (movement, friction, input_quit))
+        .add_systems(FixedUpdate, (boost, movement, friction, input_quit))
         .run();
 }
