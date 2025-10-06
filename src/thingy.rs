@@ -1,21 +1,11 @@
-use bevy::ecs::bundle::Bundle;
-use bevy::ecs::component::Component;
-use bevy::render::mesh::Mesh;
-
-use bevy::asset::Handle;
-
-use bevy::sprite::ColorMaterial;
-use bevy_rapier2d::prelude::ColliderMassProperties;
-
-use bevy_rapier2d::prelude::Collider;
-
-use bevy_rapier2d::prelude::RigidBody;
-
-use bevy::transform::components::Transform;
-
-use bevy::sprite::MeshMaterial2d;
-
-use bevy::render::mesh::Mesh2d;
+use bevy::{
+    asset::Handle,
+    ecs::{bundle::Bundle, component::Component},
+    render::mesh::{Mesh, Mesh2d},
+    sprite::{ColorMaterial, MeshMaterial2d},
+    transform::components::Transform,
+};
+use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody};
 
 #[derive(Debug, Component)]
 pub struct ThingyMarker;

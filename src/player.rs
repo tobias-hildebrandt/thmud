@@ -1,35 +1,12 @@
-use bevy::ecs::component::Component;
-use bevy::ecs::hierarchy::Children;
-
-use bevy::ecs::spawn::SpawnRelated;
-use bevy::sprite::ColorMaterial;
-use bevy_rapier2d::prelude::CharacterLength;
-
-use bevy::ecs::bundle::Bundle;
-
-use bevy::render::mesh::Mesh;
-
-use bevy::asset::Handle;
-
-use bevy::text::TextColor;
-
-use bevy::text::Text2d;
-
-use bevy_rapier2d::prelude::ColliderMassProperties;
-
-use bevy::transform::components::Transform;
-
-use bevy_rapier2d::prelude::KinematicCharacterController;
-
-use bevy_rapier2d::prelude::Collider;
-
-use bevy_rapier2d::prelude::LockedAxes;
-use bevy_rapier2d::prelude::RigidBody;
-
-use bevy::sprite::MeshMaterial2d;
-
-use bevy::render::mesh::Mesh2d;
-use bevy_rapier2d::prelude::Velocity;
+use bevy::{
+    asset::Handle,
+    ecs::{bundle::Bundle, component::Component, hierarchy::Children, spawn::SpawnRelated},
+    render::mesh::{Mesh, Mesh2d},
+    sprite::{ColorMaterial, MeshMaterial2d},
+    text::{Text2d, TextColor},
+    transform::components::Transform,
+};
+use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, LockedAxes, RigidBody, Velocity};
 
 /// Marker struct for players.
 #[derive(Debug, Component)]

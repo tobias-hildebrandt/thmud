@@ -1,20 +1,14 @@
-use bevy::app::AppExit;
-
-use bevy::ecs::event::EventWriter;
-
-use bevy::math::Vec2;
-
-use bevy::ecs::query::With;
-
+use bevy::{
+    app::AppExit,
+    ecs::{
+        event::EventWriter,
+        query::With,
+        system::{Query, Res},
+    },
+    input::{ButtonInput, keyboard::KeyCode},
+    math::Vec2,
+};
 use bevy_rapier2d::prelude::Velocity;
-
-use bevy::ecs::system::Query;
-
-use bevy::input::keyboard::KeyCode;
-
-use bevy::input::ButtonInput;
-
-use bevy::ecs::system::Res;
 
 const MOVE_SPEED: f32 = 500.0;
 const BOOST_MULTIPLIER: f32 = 2.5;

@@ -1,34 +1,16 @@
-use bevy::math::Quat;
-use bevy::math::primitives::Circle;
-use bevy::sprite::ColorMaterial;
-use bevy::sprite::MeshMaterial2d;
-
-use bevy::render::mesh::Mesh2d;
-
-use bevy_rapier2d::prelude::Collider;
-use bevy_rapier2d::prelude::ColliderMassProperties;
-
-use bevy_rapier2d::prelude::RigidBody;
-
-use bevy::math::Vec3;
-
-use bevy::transform::components::Transform;
-
-use std::f32::consts::TAU;
-
+use bevy::{
+    asset::Assets,
+    color::Color,
+    core_pipeline::core_2d::Camera2d,
+    ecs::system::{Commands, ResMut},
+    math::{Quat, Vec3, primitives::Circle},
+    render::mesh::{Mesh, Mesh2d},
+    sprite::{ColorMaterial, MeshMaterial2d},
+    transform::components::Transform,
+};
+use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody};
 use std::collections::HashMap;
-
-use bevy::color::Color;
-
-use bevy::core_pipeline::core_2d::Camera2d;
-
-use bevy::render::mesh::Mesh;
-
-use bevy::asset::Assets;
-
-use bevy::ecs::system::ResMut;
-
-use bevy::ecs::system::Commands;
+use std::f32::consts::TAU;
 
 /// Spawn starting entities.
 pub fn startup_spawn(

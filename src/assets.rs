@@ -1,21 +1,13 @@
-use bevy::ecs::resource::Resource;
-use bevy::math::primitives::Rectangle;
-
-use bevy::math::primitives::Circle;
-
-use bevy::asset::Assets;
-
-use fixed::types::extra::U12;
-
+use bevy::{
+    asset::{Assets, Handle},
+    ecs::resource::Resource,
+    math::primitives::{Circle, Rectangle},
+    render::mesh::Mesh,
+    sprite::ColorMaterial,
+};
 use fixed::FixedI32;
-
+use fixed::types::extra::U12;
 use std::collections::HashMap;
-
-use bevy::sprite::ColorMaterial;
-
-use bevy::render::mesh::Mesh;
-
-use bevy::asset::Handle;
 
 #[derive(Resource)]
 pub(crate) struct AssetHandles {
