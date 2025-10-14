@@ -8,28 +8,38 @@ use bevy::{
     input::{ButtonInput, keyboard::KeyCode},
     math::Vec2,
 };
-use bevy_rapier2d::prelude::Velocity;
+use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 
-const MOVE_SPEED: f32 = 500.0;
-const BOOST_MULTIPLIER: f32 = 2.5;
+use crate::player::{BoostForce, MovementInputForce};
 
+const MILLION: f32 = 1_000_000.;
+const MOVE_FORCE: f32 = 500. * MILLION;
+const BOOST_FORCE: f32 = 1_000. * MILLION;
+
+/// System handling player boost according to current velocity direction.
 pub fn boost(
     buttons: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Velocity, With<crate::player::PlayerMarker>>,
+    mut query: Query<(&mut BoostForce, &Velocity), With<crate::player::PlayerMarker>>,
 ) {
+    let (mut force, velocity) = query.single_mut().expect("no player");
     if buttons.pressed(KeyCode::Space) {
-        let velocity = &mut query.single_mut().expect("no player").linvel;
-        let normalized = velocity.normalize_or_zero();
-        *velocity += normalized * (MOVE_SPEED * (BOOST_MULTIPLIER - 1.));
+        let velocity_normalized = velocity.linvel.normalize_or_zero();
+
+        force.0 = ExternalForce {
+            force: velocity_normalized * BOOST_FORCE,
+            torque: Default::default(),
+        };
+    } else {
+        force.0 = Default::default();
     }
 }
 
 /// System handling player movement according to WASD keyboard input.
 pub fn movement(
     buttons: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Velocity, With<crate::player::PlayerMarker>>,
+    mut query: Query<&mut MovementInputForce, With<crate::player::PlayerMarker>>,
 ) {
-    let velocity = &mut query.single_mut().expect("no player").linvel;
+    let mut force = query.single_mut().expect("no player");
 
     let mut input: Option<Vec2> = None;
 
@@ -46,26 +56,17 @@ pub fn movement(
         input.get_or_insert_default().x += 1.0;
     };
 
-    // only need to do math if there is some input
+    /*
+    NOTE:
+    probably don't need to scale down based on current velocity, since at high velocities,
+    friction/drag should apply a greater force than our input force
+    */
+
     if let Some(input) = input {
-        // velocity from input
-        let input_delta = input.normalize_or_zero() * MOVE_SPEED;
-
-        // don't allow to move faster than move speed or current speed
-        // (if we are currently moving faster due to some external cause)
-        let speed_limit = f32::max(velocity.length(), MOVE_SPEED);
-
-        // if we simply add the input velocity
-        let velocity_with_input = *velocity + input_delta;
-
-        // if we would violate the speed limit
-        if velocity_with_input.length() > speed_limit {
-            // cap at speed limit, but use new angle
-            *velocity = velocity_with_input.normalize_or_zero() * speed_limit;
-        } else {
-            // use the simple addition
-            *velocity = velocity_with_input;
-        }
+        let f = input * MOVE_FORCE;
+        force.0.force = f;
+    } else {
+        force.0.force = Default::default();
     }
 }
 
