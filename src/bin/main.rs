@@ -12,6 +12,7 @@ use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiAllEntries};
 use thmud::{
     input::{boost, input_quit, movement},
     physics::friction,
+    player::apply_player_forces,
     startup::startup_spawn,
 };
 
@@ -48,6 +49,9 @@ fn main() {
         .add_systems(Startup, |mut commands: bevy::ecs::system::Commands| {
             commands.spawn(PerfUiAllEntries::default());
         })
-        .add_systems(FixedUpdate, (boost, movement, friction, input_quit))
+        .add_systems(
+            FixedUpdate,
+            (boost, movement, friction, apply_player_forces, input_quit),
+        )
         .run();
 }

@@ -1,12 +1,17 @@
 use bevy::{
     asset::Handle,
-    ecs::{bundle::Bundle, component::Component, hierarchy::Children, spawn::SpawnRelated},
+    ecs::{
+        bundle::Bundle, component::Component, hierarchy::Children, query::AnyOf,
+        spawn::SpawnRelated, system::Query,
+    },
     render::mesh::{Mesh, Mesh2d},
     sprite::{ColorMaterial, MeshMaterial2d},
     text::{Text2d, TextColor},
     transform::components::Transform,
 };
-use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, LockedAxes, RigidBody, Velocity};
+use bevy_rapier2d::prelude::{
+    Ccd, Collider, ColliderMassProperties, ExternalForce, LockedAxes, RigidBody, Velocity,
+};
 
 /// Marker struct for players.
 #[derive(Debug, Component)]
@@ -28,7 +33,19 @@ pub struct Player {
     pub(crate) transform: Transform,
     pub(crate) mass_properties: ColliderMassProperties,
     pub(crate) locked_axes: LockedAxes,
+    pub(crate) external_force: ExternalForce,
+    pub(crate) collision_detection: Ccd,
+
+    // internal input forces
+    pub(crate) input_force: MovementInputForce,
+    pub(crate) boost_force: BoostForce,
 }
+
+#[derive(Debug, Default, Component)]
+pub struct MovementInputForce(pub ExternalForce);
+
+#[derive(Debug, Default, Component)]
+pub struct BoostForce(pub ExternalForce);
 
 #[derive(Debug, Bundle)]
 pub struct PlayerText {
@@ -55,6 +72,11 @@ impl Player {
             transform: Transform::from_xyz(0.0, 0.0, 0.0),
             mass_properties: ColliderMassProperties::Density(Self::DENSITY),
             locked_axes: LockedAxes::ROTATION_LOCKED,
+            external_force: Default::default(),
+            collision_detection: Default::default(),
+
+            input_force: Default::default(),
+            boost_force: Default::default(),
         };
 
         // child entity for text
@@ -65,5 +87,16 @@ impl Player {
         };
 
         (player, Children::spawn_one(text))
+    }
+}
+
+pub fn apply_player_forces(
+    query: Query<(
+        &mut ExternalForce,
+        AnyOf<(&MovementInputForce, &BoostForce)>,
+    )>,
+) {
+    for (mut total, (input, boost)) in query {
+        *total = input.map(|w| w.0).unwrap_or_default() + boost.map(|w| w.0).unwrap_or_default();
     }
 }
