@@ -1,6 +1,10 @@
 use bevy::{
     asset::{Assets, Handle},
-    ecs::resource::Resource,
+    color::Color,
+    ecs::{
+        resource::Resource,
+        system::{Commands, ResMut},
+    },
     math::primitives::{Circle, Rectangle},
     render::mesh::Mesh,
     sprite::ColorMaterial,
@@ -10,7 +14,7 @@ use fixed::types::extra::U12;
 use std::collections::HashMap;
 
 #[derive(Resource)]
-pub(crate) struct AssetHandles {
+pub struct AssetHandles {
     pub(crate) player_mesh: Handle<Mesh>,
     pub(crate) player_mat: Handle<ColorMaterial>,
     pub(crate) thingy_circle_meshes: HashMap<FixedI32<U12>, Handle<Mesh>>,
@@ -40,4 +44,20 @@ impl AssetHandles {
             .or_insert(meshes.add(Rectangle::new(side, side)))
             .clone()
     }
+}
+
+pub fn initialize_assets(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let assets = AssetHandles {
+        player_mesh: meshes.add(Circle::new(50.0)),
+        player_mat: materials.add(Color::hsl(180., 0.95, 0.7)),
+        thingy_circle_meshes: HashMap::new(),
+        thingy_square_meshes: HashMap::new(),
+        thingy_mat: materials.add(Color::hsl(110., 0.45, 0.4)),
+    };
+
+    commands.insert_resource(assets);
 }

@@ -18,6 +18,7 @@ pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((Camera2d, GameCamera));
 }
 
+// TODO: smooth
 pub fn camera_follow_player(
     mut camera: Query<&mut Transform, (With<GameCamera>, Without<PlayerMarker>)>,
     player: Query<&Transform, (With<PlayerMarker>, Without<GameCamera>)>,

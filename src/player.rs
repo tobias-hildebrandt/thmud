@@ -1,8 +1,12 @@
 use bevy::{
     asset::Handle,
     ecs::{
-        bundle::Bundle, component::Component, hierarchy::Children, query::AnyOf,
-        spawn::SpawnRelated, system::Query,
+        bundle::Bundle,
+        component::Component,
+        hierarchy::Children,
+        query::AnyOf,
+        spawn::SpawnRelated,
+        system::{Commands, Query, Res},
     },
     render::mesh::{Mesh, Mesh2d},
     sprite::{ColorMaterial, MeshMaterial2d},
@@ -12,6 +16,8 @@ use bevy::{
 use bevy_rapier2d::prelude::{
     Ccd, Collider, ColliderMassProperties, ExternalForce, LockedAxes, RigidBody, Velocity,
 };
+
+use crate::assets::AssetHandles;
 
 /// Marker struct for players.
 #[derive(Debug, Component)]
@@ -99,4 +105,12 @@ pub fn apply_player_forces(
     for (mut total, (input, boost)) in query {
         *total = input.map(|w| w.0).unwrap_or_default() + boost.map(|w| w.0).unwrap_or_default();
     }
+}
+
+pub fn spawn_player(mut commands: Commands, asset_handles: Res<AssetHandles>) {
+    // spawn player bundle
+    commands.spawn(crate::player::Player::create_bundle(
+        asset_handles.player_mesh.clone(),
+        asset_handles.player_mat.clone(),
+    ));
 }

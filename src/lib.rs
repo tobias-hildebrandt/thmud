@@ -1,7 +1,6 @@
-mod assets;
+pub mod assets;
 pub mod camera;
 pub mod input;
 pub mod physics;
 pub mod player;
-pub mod startup;
-mod thingy;
+pub mod thingy;
