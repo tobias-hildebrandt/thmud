@@ -1,7 +1,6 @@
 use bevy::{
     asset::Assets,
     color::Color,
-    core_pipeline::core_2d::Camera2d,
     ecs::system::{Commands, ResMut},
     math::{Quat, Vec3, primitives::Circle},
     render::mesh::{Mesh, Mesh2d},
@@ -18,8 +17,6 @@ pub fn startup_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2d);
-
     // create assets
     let mut asset_handles = crate::assets::AssetHandles {
         player_mesh: meshes.add(Circle::new(50.0)),

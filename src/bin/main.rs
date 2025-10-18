@@ -1,6 +1,7 @@
 use bevy::{
     DefaultPlugins,
-    app::{App, FixedUpdate, PluginGroup, Startup},
+    app::{App, FixedUpdate, PluginGroup, Startup, Update},
+    ecs::schedule::IntoScheduleConfigs,
     math::Vec2,
     window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };
@@ -10,6 +11,7 @@ use bevy_rapier2d::{
 };
 use iyes_perf_ui::{PerfUiPlugin, prelude::PerfUiAllEntries};
 use thmud::{
+    camera::{camera_follow_player, spawn_camera},
     input::{boost, input_quit, movement},
     physics::friction,
     player::apply_player_forces,
@@ -29,6 +31,7 @@ fn main() {
             ..Default::default()
         }))
         .add_systems(Startup, startup_spawn)
+        .add_systems(Startup, spawn_camera)
         .add_plugins({
             let mut config = RapierConfiguration::new(1.);
             config.gravity = Vec2::ZERO;
@@ -49,9 +52,12 @@ fn main() {
         .add_systems(Startup, |mut commands: bevy::ecs::system::Commands| {
             commands.spawn(PerfUiAllEntries::default());
         })
+        // game logic
         .add_systems(
             FixedUpdate,
             (boost, movement, friction, apply_player_forces, input_quit),
         )
+        // render-only
+        .add_systems(Update, camera_follow_player)
         .run();
 }
