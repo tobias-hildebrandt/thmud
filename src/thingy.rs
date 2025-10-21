@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use bevy::{
+    app::{FixedUpdate, Plugin, Startup},
     asset::{Assets, Handle},
     ecs::{
         bundle::Bundle,
@@ -19,10 +20,10 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use crate::{assets::AssetHandles, player::PlayerMarker};
 
 #[derive(Debug, Component)]
-pub struct ThingyMarker;
+pub(crate) struct ThingyMarker;
 
 #[derive(Debug, Bundle)]
-pub struct Thingy {
+pub(crate) struct Thingy {
     pub(crate) marker: ThingyMarker,
     pub(crate) mesh: Mesh2d,
     pub(crate) mesh_material: MeshMaterial2d<ColorMaterial>,
@@ -61,9 +62,9 @@ impl Thingy {
 }
 
 #[derive(Debug, Resource)]
-pub struct WorldSeed(i64);
+pub(crate) struct WorldSeed(i64);
 
-pub fn initialize_world_seed(mut commands: Commands) {
+fn initialize_world_seed(mut commands: Commands) {
     let world_seed = std::env::var("WORLD_SEED")
         .map_err(|_e| ())
         .and_then(|seed| seed.parse().map_err(|_e| ()))
@@ -123,15 +124,15 @@ impl From<Chunk> for ChunkId {
 }
 
 #[derive(Debug, Resource, Default)]
-pub struct SpawnedChunks {
+pub(crate) struct SpawnedChunks {
     ids: BTreeSet<ChunkId>,
 }
 
-pub fn initialize_chunk_spawn_tracker(mut commands: Commands) {
+pub(crate) fn initialize_chunk_spawn_tracker(mut commands: Commands) {
     commands.insert_resource(SpawnedChunks::default());
 }
 
-pub fn chunk_spawning(
+pub(crate) fn chunk_spawning(
     mut commands: Commands,
     world_seed: Res<WorldSeed>,
     mut spawned_chunks: ResMut<SpawnedChunks>,
@@ -189,5 +190,17 @@ pub fn chunk_spawning(
             // chunk was "spawned" even if we didn't need to spawn any thingies
             spawned_chunks.ids.insert(chunk_id);
         }
+    }
+}
+
+pub struct GameThingyPlugin;
+
+impl Plugin for GameThingyPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(
+            Startup,
+            (initialize_world_seed, initialize_chunk_spawn_tracker),
+        )
+        .add_systems(FixedUpdate, chunk_spawning);
     }
 }

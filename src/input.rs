@@ -1,8 +1,9 @@
 use bevy::{
-    app::AppExit,
+    app::{AppExit, FixedUpdate, Plugin},
     ecs::{
         event::EventWriter,
         query::With,
+        schedule::IntoScheduleConfigs,
         system::{Query, Res},
     },
     input::{ButtonInput, keyboard::KeyCode},
@@ -17,7 +18,7 @@ const MOVE_FORCE: f32 = 500. * MILLION;
 const BOOST_FORCE: f32 = 1_000. * MILLION;
 
 /// System handling player boost according to current velocity direction.
-pub fn boost(
+fn boost(
     buttons: Res<ButtonInput<KeyCode>>,
     mut query: Query<(&mut BoostForce, &Velocity), With<crate::player::PlayerMarker>>,
 ) {
@@ -35,7 +36,7 @@ pub fn boost(
 }
 
 /// System handling player movement according to WASD keyboard input.
-pub fn movement(
+fn movement(
     buttons: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut MovementInputForce, With<crate::player::PlayerMarker>>,
 ) {
@@ -71,8 +72,16 @@ pub fn movement(
 }
 
 /// System handling Ctrl+Q quit.
-pub fn input_quit(buttons: Res<ButtonInput<KeyCode>>, mut event_writer: EventWriter<AppExit>) {
+fn input_quit(buttons: Res<ButtonInput<KeyCode>>, mut event_writer: EventWriter<AppExit>) {
     if buttons.all_pressed([KeyCode::ControlLeft, KeyCode::KeyQ]) {
         event_writer.write(AppExit::Success);
+    }
+}
+
+pub struct GameInputPlugin;
+
+impl Plugin for GameInputPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(FixedUpdate, (movement, boost.after(movement), input_quit));
     }
 }

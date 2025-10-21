@@ -1,10 +1,12 @@
 use bevy::{
+    app::{FixedUpdate, Plugin, Startup},
     asset::Handle,
     ecs::{
         bundle::Bundle,
         component::Component,
         hierarchy::Children,
         query::AnyOf,
+        schedule::IntoScheduleConfigs,
         spawn::SpawnRelated,
         system::{Commands, Query, Res},
     },
@@ -96,7 +98,7 @@ impl Player {
     }
 }
 
-pub fn apply_player_forces(
+fn apply_player_forces(
     query: Query<(
         &mut ExternalForce,
         AnyOf<(&MovementInputForce, &BoostForce)>,
@@ -107,10 +109,22 @@ pub fn apply_player_forces(
     }
 }
 
-pub fn spawn_player(mut commands: Commands, asset_handles: Res<AssetHandles>) {
+fn spawn_player(mut commands: Commands, asset_handles: Res<AssetHandles>) {
     // spawn player bundle
     commands.spawn(crate::player::Player::create_bundle(
         asset_handles.player_mesh.clone(),
         asset_handles.player_mat.clone(),
     ));
+}
+
+pub struct GamePlayerPlugin;
+
+impl Plugin for GamePlayerPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(
+            Startup,
+            spawn_player.after(crate::assets::initialize_assets),
+        )
+        .add_systems(FixedUpdate, apply_player_forces);
+    }
 }

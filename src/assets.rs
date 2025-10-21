@@ -1,4 +1,5 @@
 use bevy::{
+    app::{Plugin, Startup},
     asset::{Assets, Handle},
     color::Color,
     ecs::{
@@ -14,7 +15,7 @@ use fixed::types::extra::U12;
 use std::collections::HashMap;
 
 #[derive(Resource)]
-pub struct AssetHandles {
+pub(crate) struct AssetHandles {
     pub(crate) player_mesh: Handle<Mesh>,
     pub(crate) player_mat: Handle<ColorMaterial>,
     pub(crate) thingy_circle_meshes: HashMap<FixedI32<U12>, Handle<Mesh>>,
@@ -46,7 +47,7 @@ impl AssetHandles {
     }
 }
 
-pub fn initialize_assets(
+pub(crate) fn initialize_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -60,4 +61,12 @@ pub fn initialize_assets(
     };
 
     commands.insert_resource(assets);
+}
+
+pub struct GameAssetPlugin;
+
+impl Plugin for GameAssetPlugin {
+    fn build(&self, app: &mut bevy::app::App) {
+        app.add_systems(Startup, initialize_assets);
+    }
 }
