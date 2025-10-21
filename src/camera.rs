@@ -9,7 +9,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::player::PlayerMarker;
+use crate::simulation::player::PlayerMarker;
 
 /// Marker for game camera.
 #[derive(Component)]

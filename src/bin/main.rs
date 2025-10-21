@@ -4,9 +4,11 @@ use bevy::{
     window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };
 use thmud::{
-    assets::GameAssetPlugin, camera::GameCameraPlugin, debug::GameDebugPlugin,
-    input::GameInputPlugin, physics::GamePhysicsPlugin, player::GamePlayerPlugin,
-    thingy::GameThingyPlugin,
+    assets::GameAssetPlugin,
+    camera::GameCameraPlugin,
+    debug::GameDebugPlugin,
+    input::GameInputPlugin,
+    simulation::{physics::GamePhysicsPlugin, player::GamePlayerPlugin, thingy::GameThingyPlugin},
 };
 
 fn main() {

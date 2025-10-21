@@ -25,6 +25,7 @@ use crate::assets::AssetHandles;
 #[derive(Debug, Component)]
 pub struct PlayerMarker;
 
+// TODO: move graphics out
 #[derive(Debug, Bundle)]
 pub struct Player {
     // game
@@ -111,7 +112,7 @@ fn apply_player_forces(
 
 fn spawn_player(mut commands: Commands, asset_handles: Res<AssetHandles>) {
     // spawn player bundle
-    commands.spawn(crate::player::Player::create_bundle(
+    commands.spawn(Player::create_bundle(
         asset_handles.player_mesh.clone(),
         asset_handles.player_mat.clone(),
     ));

@@ -17,7 +17,10 @@ use bevy::{
 use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::{assets::AssetHandles, player::PlayerMarker};
+use crate::{
+    assets::AssetHandles,
+    simulation::player::{Player, PlayerMarker},
+};
 
 #[derive(Debug, Component)]
 pub(crate) struct ThingyMarker;
@@ -56,7 +59,7 @@ impl Thingy {
                 true => Collider::ball(50.),
                 false => Collider::cuboid(25.0, 25.0),
             },
-            mass_properties: ColliderMassProperties::Density(crate::player::Player::DENSITY / 2.),
+            mass_properties: ColliderMassProperties::Density(Player::DENSITY / 2.),
         }
     }
 }

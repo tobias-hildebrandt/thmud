@@ -32,6 +32,19 @@
 - client extrapolation
 - server rollback too?
 
+## Network ECS
+- bevy sub-app/multi-world support not yet ergonomic
+- on client: run network world objects in same world
+  - add separate components for "network" vs "client" state
+  - interpolate between network and client state on recv
+  - extrapolate client state between recv's
+- OR
+  - just shove "duplicate" network components on entities
+    - generic wrapper type?
+  - makes queries simpler?
+  - may run into problems with entity "lifetimes"
+- on server:
+  - no separate components -- no rendering/input
 
 # Roadmap
 - [x] set up git, cargo, github actions

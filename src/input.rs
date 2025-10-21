@@ -11,7 +11,7 @@ use bevy::{
 };
 use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 
-use crate::player::{BoostForce, MovementInputForce};
+use crate::simulation::player::{BoostForce, MovementInputForce, PlayerMarker};
 
 const MILLION: f32 = 1_000_000.;
 const MOVE_FORCE: f32 = 500. * MILLION;
@@ -20,7 +20,7 @@ const BOOST_FORCE: f32 = 1_000. * MILLION;
 /// System handling player boost according to current velocity direction.
 fn boost(
     buttons: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut BoostForce, &Velocity), With<crate::player::PlayerMarker>>,
+    mut query: Query<(&mut BoostForce, &Velocity), With<PlayerMarker>>,
 ) {
     let (mut force, velocity) = query.single_mut().expect("no player");
     if buttons.pressed(KeyCode::Space) {
@@ -38,7 +38,7 @@ fn boost(
 /// System handling player movement according to WASD keyboard input.
 fn movement(
     buttons: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut MovementInputForce, With<crate::player::PlayerMarker>>,
+    mut query: Query<&mut MovementInputForce, With<PlayerMarker>>,
 ) {
     let mut force = query.single_mut().expect("no player");
 
