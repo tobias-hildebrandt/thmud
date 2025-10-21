@@ -1,31 +1,33 @@
 use std::{
+    borrow::Cow,
     io,
     net::{SocketAddr, UdpSocket},
 };
 
 use bevy::ecs::component::Component;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NetId(pub u32);
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Serialize, Deserialize)]
 pub struct NetObject {
     id: NetId,
 }
 
-#[derive(Debug)]
-pub struct NetPacket<'data> {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NetMessage<'data> {
     header: NetHeader,
     body: Vec<NetPacketBody<'data>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NetHeader {}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum NetPacketBody<'data> {
-    Ping(&'data [u8]),
-    Pong(&'data [u8]),
+    Ping(Cow<'data, [u8]>),
+    Pong(Cow<'data, [u8]>),
 }
 
 #[derive(Debug)]
@@ -38,21 +40,44 @@ impl NetSocketAndBuffer {
     const BUFFER_SIZE: usize = 1500;
 
     fn new(socket: UdpSocket) -> Self {
+        socket
+            .set_nonblocking(true)
+            .expect("unable to set nonblocking socket, platform unsupported");
+
         Self {
             socket,
             buffer: [0; Self::BUFFER_SIZE],
         }
     }
 
-    fn recv(&mut self) -> Result<&[u8], io::Error> {
-        let size = self.socket.recv(&mut self.buffer)?;
-        Ok(&self.buffer[0..size])
+    fn recv(&mut self) -> Result<Option<NetMessage<'static>>, SendOrSerializeError> {
+        let size = match self.socket.recv(&mut self.buffer) {
+            Ok(size) => size,
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+        let msg = postcard::from_bytes(&self.buffer[0..size])?;
+        Ok(Some(msg))
     }
 
-    fn send(&self, message: &[u8], target: SocketAddr) -> Result<(), io::Error> {
-        self.socket.send_to(message, target)?;
+    fn send(
+        &mut self,
+        message: &impl Serialize,
+        target: SocketAddr,
+    ) -> Result<(), SendOrSerializeError> {
+        let len = postcard::to_slice(message, &mut self.buffer)?.len();
+        self.socket.send_to(&self.buffer[0..len], target)?;
+
         Ok(())
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SendOrSerializeError {
+    #[error("Send error: {0:?}")]
+    Send(#[from] io::Error),
+    #[error("Serialize error: {0:?}")]
+    Serialize(#[from] postcard::Error),
 }
 
 #[derive(Debug, Component)]
@@ -64,7 +89,6 @@ pub struct NetServer {
 impl NetServer {
     fn new(port: Option<u16>) -> Result<Self, io::Error> {
         let socket = UdpSocket::bind(("0.0.0.0", port.unwrap_or(0)))?;
-
         Ok(Self {
             node: NetSocketAndBuffer::new(socket),
             client_addresses: Default::default(),
@@ -98,9 +122,17 @@ mod tests {
         let mut server = NetServer::new(Some(5555)).unwrap();
         let mut client = NetClient::new("127.0.0.1:5555".parse().unwrap()).unwrap();
 
-        client.node.send(b"hello", client.server_addr).unwrap();
+        let client_message = NetMessage {
+            header: NetHeader {},
+            body: vec![NetPacketBody::Ping(Cow::Borrowed(b"hello"))],
+        };
+
+        client
+            .node
+            .send(&client_message, client.server_addr)
+            .unwrap();
 
         let msg = server.node.recv().unwrap();
-        println!("server sees message: {:?}", str::from_utf8(msg).unwrap());
+        println!("server sees message: {:?}", msg);
     }
 }
