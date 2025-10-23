@@ -1,17 +1,40 @@
-use bevy::app::Plugin;
+use bevy::{
+    app::Plugin,
+    ecs::{bundle::Bundle, component::Component},
+    transform::components::Transform,
+};
+use serde::{Deserialize, Serialize};
 
-pub struct ServerPlugin;
+#[derive(Debug, Component, Clone, Copy, Default)]
+pub(crate) struct Networked<T: Component> {
+    pub(crate) component: Option<T>,
+}
 
-impl Plugin for ServerPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
-        todo!()
+impl<T: Component> Networked<T> {
+    pub(crate) const fn none() -> Self {
+        Self { component: None }
+    }
+
+    pub(crate) const fn new(component: T) -> Self {
+        Self {
+            component: Some(component),
+        }
     }
 }
 
-pub struct ClientPlugin;
-
-impl Plugin for ClientPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
-        todo!()
+impl<T: Component> From<T> for Networked<T> {
+    fn from(value: T) -> Self {
+        Self {
+            component: Some(value),
+        }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct NetId(pub(crate) u128);
+
+#[derive(Debug, Bundle)]
+pub(crate) struct NetPhysicsObjectBundle {
+    pub(crate) id: NetId,
+    pub(crate) transform: Networked<Transform>,
 }

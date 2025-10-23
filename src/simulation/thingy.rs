@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use bevy::{
     app::{FixedUpdate, Plugin, Startup},
-    asset::{Assets, Handle},
     ecs::{
         bundle::Bundle,
         component::Component,
@@ -10,15 +9,14 @@ use bevy::{
         resource::Resource,
         system::{Commands, Query, Res, ResMut},
     },
-    render::mesh::{Mesh, Mesh2d},
-    sprite::{ColorMaterial, MeshMaterial2d},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody};
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    assets::AssetHandles,
+    networking::ecs::{NetId, NetPhysicsObjectBundle, Networked},
     simulation::player::{Player, PlayerMarker},
 };
 
@@ -28,38 +26,44 @@ pub(crate) struct ThingyMarker;
 #[derive(Debug, Bundle)]
 pub(crate) struct Thingy {
     pub(crate) marker: ThingyMarker,
-    pub(crate) mesh: Mesh2d,
-    pub(crate) mesh_material: MeshMaterial2d<ColorMaterial>,
     pub(crate) transform: Transform,
     pub(crate) rigid_body: RigidBody,
     pub(crate) collider: Collider,
     pub(crate) mass_properties: ColliderMassProperties,
+    pub(crate) net_phys_obj: NetPhysicsObjectBundle,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct CreateThingy {
+    pub(crate) net_id: NetId,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) rigid_body_fixed: bool,
+    pub(crate) is_circle: bool,
+    pub(crate) radius: f32,
+    pub(crate) density: f32,
 }
 
 impl Thingy {
-    pub(crate) fn create_bundle(
-        x: f32,
-        y: f32,
-        fixed: bool,
-        is_circle: bool,
-        color: Handle<ColorMaterial>,
-        mesh: Handle<Mesh>,
-    ) -> Self {
+    pub(crate) fn create_bundle(create: CreateThingy) -> Self {
         Self {
             marker: ThingyMarker,
-            transform: Transform::from_xyz(x, y, 0.0),
-            mesh: Mesh2d(mesh),
-            mesh_material: MeshMaterial2d(color),
-            rigid_body: if fixed {
+            transform: Transform::from_xyz(create.x, create.y, 0.0),
+            rigid_body: if create.rigid_body_fixed {
                 RigidBody::Fixed
             } else {
                 RigidBody::Dynamic
             },
-            collider: match is_circle {
-                true => Collider::ball(50.),
-                false => Collider::cuboid(25.0, 25.0),
+            collider: match create.is_circle {
+                true => Collider::ball(create.radius),
+                false => Collider::cuboid(create.radius, create.radius),
             },
-            mass_properties: ColliderMassProperties::Density(Player::DENSITY / 2.),
+            mass_properties: ColliderMassProperties::Density(create.density),
+
+            net_phys_obj: NetPhysicsObjectBundle {
+                id: create.net_id,
+                transform: Networked::new(Transform::from_xyz(create.x, create.y, 0.0)),
+            },
         }
     }
 }
@@ -140,8 +144,6 @@ pub(crate) fn chunk_spawning(
     world_seed: Res<WorldSeed>,
     mut spawned_chunks: ResMut<SpawnedChunks>,
     player_coords: Query<&Transform, With<PlayerMarker>>,
-    mut asset_handles: ResMut<AssetHandles>,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let player_coords = player_coords.single().unwrap();
     let current_chunk = Chunk::from_transform(player_coords);
@@ -166,27 +168,24 @@ pub(crate) fn chunk_spawning(
                 let should_spawn_thingy = rng.random_bool(0.3);
 
                 if should_spawn_thingy {
-                    let is_fixed = rng.random_bool(0.3);
-                    let is_circle = rng.random_bool(0.5);
-                    let radius = rng.random_range(0..32) as f32;
+                    todo!()
 
-                    let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
-                    let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
+                    // let is_fixed = rng.random_bool(0.3);
+                    // let is_circle = rng.random_bool(0.5);
+                    // let radius = rng.random_range(0..32) as f32;
 
-                    let thingy_bundle = Thingy::create_bundle(
-                        (chunk.x * CHUNK_SIZE + chunk_offset_x) as f32,
-                        (chunk.y * CHUNK_SIZE + chunk_offset_y) as f32,
-                        is_fixed,
-                        is_circle,
-                        asset_handles.thingy_mat.clone(),
-                        if is_circle {
-                            asset_handles.thingy_circle_mesh(radius, &mut meshes)
-                        } else {
-                            asset_handles.thingy_square_mesh(radius, &mut meshes)
-                        },
-                    );
+                    // let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
+                    // let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
 
-                    commands.spawn(thingy_bundle);
+                    // let thingy_bundle = Thingy::create_bundle(
+                    //     (chunk.x * CHUNK_SIZE + chunk_offset_x) as f32,
+                    //     (chunk.y * CHUNK_SIZE + chunk_offset_y) as f32,
+                    //     is_fixed,
+                    //     is_circle,
+                    //     asset_handles.thingy_mat.clone(),
+                    // );
+
+                    // commands.spawn(thingy_bundle);
                 }
             }
 
@@ -200,10 +199,10 @@ pub struct GameThingyPlugin;
 
 impl Plugin for GameThingyPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.add_systems(
-            Startup,
-            (initialize_world_seed, initialize_chunk_spawn_tracker),
-        )
-        .add_systems(FixedUpdate, chunk_spawning);
+        // app.add_systems(
+        //     Startup,
+        //     (initialize_world_seed, initialize_chunk_spawn_tracker),
+        // )
+        // .add_systems(FixedUpdate, chunk_spawning);
     }
 }

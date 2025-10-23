@@ -1,6 +1,5 @@
 use bevy::{
     app::{FixedUpdate, Plugin, Startup},
-    asset::Handle,
     ecs::{
         bundle::Bundle,
         component::Component,
@@ -8,18 +7,14 @@ use bevy::{
         query::AnyOf,
         schedule::IntoScheduleConfigs,
         spawn::SpawnRelated,
-        system::{Commands, Query, Res},
+        system::{Commands, Query},
     },
-    render::mesh::{Mesh, Mesh2d},
-    sprite::{ColorMaterial, MeshMaterial2d},
     text::{Text2d, TextColor},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{
     Ccd, Collider, ColliderMassProperties, ExternalForce, LockedAxes, RigidBody, Velocity,
 };
-
-use crate::assets::AssetHandles;
 
 /// Marker struct for players.
 #[derive(Debug, Component)]
@@ -30,10 +25,6 @@ pub struct PlayerMarker;
 pub struct Player {
     // game
     pub(crate) player: PlayerMarker,
-
-    // graphics
-    pub(crate) mesh: Mesh2d,
-    pub(crate) mesh_material: MeshMaterial2d<ColorMaterial>,
 
     // physics
     pub(crate) rigid_body: RigidBody,
@@ -66,15 +57,10 @@ pub struct PlayerText {
 impl Player {
     pub(crate) const DENSITY: f32 = 20.;
 
-    pub(crate) fn create_bundle(
-        mesh: Handle<Mesh>,
-        material: Handle<ColorMaterial>,
-    ) -> impl Bundle {
+    pub(crate) fn create_bundle() -> impl Bundle {
         // player entity
         let player = Player {
             player: PlayerMarker,
-            mesh: Mesh2d(mesh),
-            mesh_material: MeshMaterial2d(material),
             rigid_body: RigidBody::Dynamic,
             collider: Collider::ball(50.0),
             velocity: Velocity::zero(),
@@ -88,14 +74,14 @@ impl Player {
             boost_force: Default::default(),
         };
 
-        // child entity for text
-        let text = PlayerText {
-            text: Text2d("Player".to_string()),
-            color: TextColor::BLACK,
-            transform: Transform::from_xyz(0.0, 20.0, 0.0),
-        };
+        // // child entity for text
+        // let text = PlayerText {
+        //     text: Text2d("Player".to_string()),
+        //     color: TextColor::BLACK,
+        //     transform: Transform::from_xyz(0.0, 20.0, 0.0),
+        // };
 
-        (player, Children::spawn_one(text))
+        (player /* Children::spawn_one(text) */,)
     }
 }
 
@@ -110,12 +96,9 @@ fn apply_player_forces(
     }
 }
 
-fn spawn_player(mut commands: Commands, asset_handles: Res<AssetHandles>) {
+fn spawn_player(mut commands: Commands) {
     // spawn player bundle
-    commands.spawn(Player::create_bundle(
-        asset_handles.player_mesh.clone(),
-        asset_handles.player_mat.clone(),
-    ));
+    commands.spawn(Player::create_bundle());
 }
 
 pub struct GamePlayerPlugin;
