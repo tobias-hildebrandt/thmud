@@ -7,9 +7,9 @@ use bevy::{
 use bevy_rapier2d::prelude::Velocity;
 use serde::{Deserialize, Serialize};
 
-use crate::simulation::thingy::CreateThingy;
+use crate::simulation::thingy::ThingyNet;
 
-use super::ecs::NetId;
+use super::ecs::{NetId, NetPhysicsObjectBundle};
 
 #[derive(Debug, Resource)]
 pub(crate) struct MessageBuffer<T> {
@@ -53,33 +53,8 @@ pub(crate) enum ClientBodyElement<'data> {
     Register,
 }
 
-macro_rules! net_component {
-    ($($typ:tt),* $(,)?) => {
-        paste::paste! {
-            #[derive(Debug, Serialize, Deserialize)]
-            pub(crate) enum NetComponent {
-                $(
-                    [< $typ >]($typ),
-                )*
-            }
-        }
-    };
-}
-
-net_component! {
-    Transform,
-    Velocity,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ServerBodyElement<'data> {
     Dummy(Cow<'data, ()>),
-    CreateThingy(CreateThingy),
-    NetUpdate(NetUpdate),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct NetUpdate {
-    pub(crate) net_id: NetId,
-    pub(crate) component: NetComponent,
+    Thingy(ThingyNet),
 }

@@ -1,21 +1,31 @@
 use std::{collections::HashSet, net::SocketAddr};
 
 use bevy::{
-    app::{FixedPostUpdate, Plugin},
-    ecs::{resource::Resource, schedule::IntoScheduleConfigs, system::ResMut},
+    app::{FixedPostUpdate, FixedPreUpdate, Plugin},
+    ecs::{
+        query::With,
+        resource::Resource,
+        schedule::IntoScheduleConfigs,
+        system::{Query, ResMut},
+    },
     math::Vec2,
+    transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
 
 use crate::{
     networking::{
-        ecs::NetId,
-        messages::{ClientBodyElement, NetComponent, NetHeader, NetUpdate, ServerBodyElement},
+        ecs::{NetId, Networked},
+        messages::{ClientBodyElement, NetHeader, ServerBodyElement},
     },
-    simulation::{player::Player, thingy::CreateThingy},
+    simulation::{
+        player::Player,
+        thingy::{ThingyMarker, ThingyNet},
+    },
 };
 
 use super::{
+    ecs::NetPhysicsObjectBundle,
     messages::{ClientMessage, MessageBuffer, ServerMessage},
     sockets::{NetServerSocket, real::RealNetServerSocket},
 };
@@ -35,13 +45,14 @@ impl Plugin for ServerPlugin {
         app.insert_resource(clients);
 
         app.add_systems(
-            FixedPostUpdate,
+            FixedPreUpdate,
             (
                 server_recv_messages.before(server_handle_messages),
                 server_handle_messages,
-                server_periodic_send.after(server_handle_messages),
             ),
         );
+
+        app.add_systems(FixedPostUpdate, (server_send_thingies,));
 
         app.insert_resource(ServerBuffer::new());
     }
@@ -84,56 +95,27 @@ fn server_handle_messages(
     }
 }
 
-fn server_periodic_send(clients: ResMut<Clients>, mut socket: ResMut<NetServerSocket>) {
-    if clients.0.is_empty() {
-        return;
-    }
-    if rand::random_bool(0.95) {
-        return;
-    }
-
-    const RAND_COORD: f32 = 1000.;
-
-    let creates = (0..rand::random_range(0usize..=3))
-        .map(|_| CreateThingy {
-            net_id: NetId(rand::random()),
-            x: rand::random_range(-RAND_COORD..=RAND_COORD),
-            y: rand::random_range(-RAND_COORD..=RAND_COORD),
-            rigid_body_fixed: rand::random(),
-            is_circle: rand::random(),
-            radius: rand::random_range(50.0..=100.0),
-            density: rand::random_range(0.0..(Player::DENSITY * 2.)),
-        })
-        .collect::<Vec<_>>();
-
-    const RAND_VEL: f32 = 1000.;
-
-    let velocities = creates
+fn server_send_thingies(
+    clients: ResMut<Clients>,
+    mut socket: ResMut<NetServerSocket>,
+    query: Query<(&NetId, &Transform, &Velocity), With<ThingyMarker>>,
+) {
+    let bodies = query
         .iter()
-        .map(|c| {
-            let net_id = c.net_id;
-            NetUpdate {
-                net_id,
-                component: NetComponent::Velocity(Velocity {
-                    linvel: Vec2 {
-                        x: rand::random_range(-RAND_VEL..RAND_VEL),
-                        y: rand::random_range(-RAND_VEL..RAND_VEL),
-                    },
-                    ..Default::default()
-                }),
-            }
+        .filter_map(|(net_id, transform, vel)| {
+            rand::random_bool(0.05).then_some(ThingyNet {
+                net_id: *net_id,
+                physics: NetPhysicsObjectBundle {
+                    transform: Networked(*transform),
+                    velocity: Networked(*vel),
+                },
+            })
         })
-        .collect::<Vec<_>>();
-
-    let all = creates
-        .into_iter()
-        .map(ServerBodyElement::CreateThingy)
-        .chain(velocities.into_iter().map(ServerBodyElement::NetUpdate))
-        .collect();
+        .map(ServerBodyElement::Thingy);
 
     let message = ServerMessage {
         header: NetHeader {},
-        body: all,
+        body: bodies.collect(),
     };
 
     socket

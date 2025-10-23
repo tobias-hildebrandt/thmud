@@ -9,7 +9,9 @@ use thmud::{
     debug::GameDebugPlugin,
     input::GameInputPlugin,
     networking::{client::ClientPlugin, server::ServerPlugin},
-    simulation::{physics::GamePhysicsPlugin, player::GamePlayerPlugin, thingy::GameThingyPlugin},
+    simulation::{
+        physics::GamePhysicsPlugin, player::GamePlayerPlugin, world_gen::GameWorldGenPlugin,
+    },
 };
 
 fn main() {
@@ -22,11 +24,11 @@ fn main() {
         GameInputPlugin,
         GamePhysicsPlugin,
         GamePlayerPlugin,
-        GameThingyPlugin,
         GameDebugPlugin,
     ));
 
-    let name: String = std::env::args().skip(1).collect();
+    let args: String = std::env::args().skip(1).collect();
+    let name = format!("thmud {args}");
 
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -43,8 +45,9 @@ fn main() {
         app.add_plugins(ClientPlugin);
     } else {
         // TODO: remove unnecessary plugins
-        // app.add_plugins(DefaultPlugins::);
+        // app.add_plugins(DefaultPlugins);
         app.add_plugins(ServerPlugin);
+        app.add_plugins(GameWorldGenPlugin);
     }
 
     app.run();
