@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{
     app::{FixedPreUpdate, Plugin},
@@ -23,9 +23,9 @@ use super::{
     sockets::{NetClientSocket, debug::DebugNetSocket, real::RealNetClientSocket},
 };
 
-pub struct ClientPlugin;
+pub struct GameClientPlugin;
 
-impl Plugin for ClientPlugin {
+impl Plugin for GameClientPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         let mut socket = if let Ok(addr) = std::env::var("SERVER_ADDR") {
             NetClientSocket::Real(RealNetClientSocket::new(addr.parse().unwrap()).unwrap())
@@ -82,6 +82,10 @@ fn client_handle_messages(
     query: Query<(Entity, &NetId)>,
     mut commands: Commands,
 ) {
+    // track spawns to prevent double-spawns
+    // TODO: move spawns to post-loop, only spawn most-recent version of net id object
+    let mut spawned = BTreeSet::new();
+
     // println!("client handling messages");
     for msg in buffer.messages.drain(..) {
         // println!("client handling message: {:?}", msg);
@@ -112,8 +116,12 @@ fn client_handle_messages(
         }
 
         // spawn new entity
-        for (_, new_thingy) in thingies {
-            commands.spawn(Thingy::bundle(new_thingy));
+        for (net_id, new_thingy) in thingies {
+            // do not spawn twice
+            if !spawned.contains(&net_id) {
+                spawned.insert(net_id);
+                commands.spawn(Thingy::bundle(new_thingy));
+            }
         }
     }
 }

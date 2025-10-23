@@ -26,9 +26,9 @@ use super::{
     sockets::{NetServerSocket, real::RealNetServerSocket},
 };
 
-pub struct ServerPlugin;
+pub struct GameServerPlugin;
 
-impl Plugin for ServerPlugin {
+impl Plugin for GameServerPlugin {
     fn build(&self, app: &mut bevy::app::App) {
         let port = std::env::var("SERVER_PORT")
             .ok()

@@ -3,17 +3,20 @@ use std::collections::BTreeSet;
 use bevy::{
     app::{FixedUpdate, Plugin, Startup},
     ecs::{
+        query::With,
         resource::Resource,
-        system::{Commands, Res, ResMut},
+        schedule::IntoScheduleConfigs,
+        system::{Commands, Query, Res, ResMut},
     },
     math::Vec3,
     transform::components::Transform,
 };
+use bevy_rapier2d::prelude::Velocity;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::networking::ecs::{NetId, NetPhysicsObjectBundle, Networked};
 
-use super::thingy::{Thingy, ThingyNet};
+use super::thingy::{Thingy, ThingyMarker, ThingyNet};
 
 #[derive(Debug, Resource)]
 pub(crate) struct WorldSeed(i64);
@@ -142,6 +145,18 @@ pub(crate) fn chunk_spawning(
     }
 }
 
+// TODO: remove, this is for debugging
+fn randomly_add_vel_to_thingies(query: Query<&mut Velocity, With<ThingyMarker>>) {
+    const RAND_VEL: f32 = 200.0;
+    for mut vel in query {
+        if rand::random_bool(0.95) {
+            continue;
+        }
+        vel.linvel.x += rand::random_range(-RAND_VEL..RAND_VEL);
+        vel.linvel.y += rand::random_range(-RAND_VEL..RAND_VEL);
+    }
+}
+
 pub struct GameWorldGenPlugin;
 
 impl Plugin for GameWorldGenPlugin {
@@ -150,6 +165,12 @@ impl Plugin for GameWorldGenPlugin {
             Startup,
             (initialize_world_seed, initialize_chunk_spawn_tracker),
         )
-        .add_systems(FixedUpdate, chunk_spawning);
+        .add_systems(
+            FixedUpdate,
+            (
+                chunk_spawning,
+                randomly_add_vel_to_thingies.after(chunk_spawning),
+            ),
+        );
     }
 }
