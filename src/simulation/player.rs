@@ -3,10 +3,8 @@ use bevy::{
     ecs::{
         bundle::Bundle,
         component::Component,
-        hierarchy::Children,
         query::AnyOf,
         schedule::IntoScheduleConfigs,
-        spawn::SpawnRelated,
         system::{Commands, Query},
     },
     text::{Text2d, TextColor},

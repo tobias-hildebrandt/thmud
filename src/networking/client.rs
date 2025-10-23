@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Duration};
+use std::collections::BTreeMap;
 
 use bevy::{
     app::{FixedPreUpdate, Plugin},
@@ -13,10 +13,7 @@ use bevy::{
 use bevy_rapier2d::prelude::Velocity;
 
 use crate::{
-    networking::{
-        messages::{ClientBodyElement, NetHeader, ServerBodyElement},
-        sockets::debug::DebugAction,
-    },
+    networking::messages::{ClientBodyElement, NetHeader, ServerBodyElement},
     simulation::thingy::Thingy,
 };
 
@@ -33,41 +30,15 @@ impl Plugin for ClientPlugin {
         let mut socket = if let Ok(addr) = std::env::var("SERVER_ADDR") {
             NetClientSocket::Real(RealNetClientSocket::new(addr.parse().unwrap()).unwrap())
         } else {
-            // TODO: load/deser actions from filesystem
-            // let net = DebugNetSocket::new_with_actions(vec![
-            //     DebugAction::Wait(Duration::from_secs(2)),
-            //     DebugAction::Message(ServerMessage {
-            //         header: NetHeader {},
-            //         body: vec![ServerBodyElement::CreateThingy(CreateThingy {
-            //             net_id: NetId(123),
-            //             x: 100.,
-            //             y: 100.,
-            //             rigid_body_fixed: false,
-            //             is_circle: true,
-            //             radius: 20.,
-            //             density: 20.,
-            //         })],
-            //     }),
-            //     DebugAction::Wait(Duration::from_secs(2)),
-            //     DebugAction::Message(ServerMessage {
-            //         header: NetHeader {},
-            //         body: vec![ServerBodyElement::CreateThingy(CreateThingy {
-            //             net_id: NetId(123),
-            //             x: -100.,
-            //             y: 100.,
-            //             rigid_body_fixed: false,
-            //             is_circle: true,
-            //             radius: 20.,
-            //             density: 20.,
-            //         })],
-            //     }),
-            // ]);
+            // TODO: load/deser actions from filesystem?
             NetClientSocket::Debug(DebugNetSocket::new())
         };
         socket
-            .send(&ClientMessage {
-                header: NetHeader {},
-                body: vec![ClientBodyElement::Register],
+            .send({
+                let mut m = ClientMessage::new(NetHeader {});
+                m.try_push(ClientBodyElement::Register)
+                    .expect("unable to fit register in client message");
+                m
             })
             .unwrap();
 
@@ -111,9 +82,9 @@ fn client_handle_messages(
     query: Query<(Entity, &NetId)>,
     mut commands: Commands,
 ) {
-    println!("client handling messages");
+    // println!("client handling messages");
     for msg in buffer.messages.drain(..) {
-        println!("client handling message: {:?}", msg);
+        // println!("client handling message: {:?}", msg);
         // TODO: process header
 
         // process and sort bodies
@@ -121,8 +92,8 @@ fn client_handle_messages(
         // TODO: vec to support multiple updates per net_id
         let mut thingies = BTreeMap::new();
 
-        for body in msg.body {
-            println!("client handling body: {:?}", body);
+        for body in msg.body_elements() {
+            // println!("client handling body: {:?}", body);
             match body {
                 ServerBodyElement::Dummy(_cow) => {}
                 ServerBodyElement::Thingy(thingy_net) => {
@@ -134,15 +105,15 @@ fn client_handle_messages(
         // update for pre-existing entity
         for (entity, our_net_id) in query {
             if let Some(t) = thingies.remove(our_net_id) {
-                println!("updating networked component");
+                // println!("updating networked component");
                 // override networked bundle
                 commands.entity(entity).insert(t.physics);
             }
         }
 
-        // spawn and update at same time
+        // spawn new entity
         for (_, new_thingy) in thingies {
-            commands.spawn(Thingy::networked_bundle(new_thingy));
+            commands.spawn(Thingy::bundle(new_thingy));
         }
     }
 }
@@ -155,16 +126,3 @@ where
         *real = networked.0.clone();
     }
 }
-
-// // TODO: macroize/dyn-ize
-// fn client_apply_networked_vel(query: Query<(&mut Velocity, &Networked<Velocity>)>) {
-//     for (mut real, networked) in query {
-//         *real = networked.0;
-//     }
-// }
-
-// fn client_apply_networked_transform(query: Query<(&mut Velocity, &Networked<Velocity>)>) {
-//     for (mut real, networked) in query {
-//         *real = networked.0;
-//     }
-// }

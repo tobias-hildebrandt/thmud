@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     io,
     net::{SocketAddr, UdpSocket},
 };
@@ -44,11 +43,10 @@ impl NetSocketAndBuffer {
 
     pub(super) fn send_to(
         &mut self,
-        message: &impl Serialize,
+        message: impl Serialize,
         target: SocketAddr,
     ) -> Result<(), SendOrSerializeError> {
-        // TODO: postcard::ser_flavors::Size
-        let len = postcard::to_slice(message, &mut self.buffer)?.len();
+        let len = postcard::to_slice(&message, &mut self.buffer)?.len();
         self.socket.send_to(&self.buffer[0..len], target)?;
 
         Ok(())

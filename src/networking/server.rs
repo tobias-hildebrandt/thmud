@@ -8,7 +8,6 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Query, ResMut},
     },
-    math::Vec2,
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
@@ -18,15 +17,12 @@ use crate::{
         ecs::{NetId, Networked},
         messages::{ClientBodyElement, NetHeader, ServerBodyElement},
     },
-    simulation::{
-        player::Player,
-        thingy::{ThingyMarker, ThingyNet},
-    },
+    simulation::thingy::{ThingyMarker, ThingyNet},
 };
 
 use super::{
     ecs::NetPhysicsObjectBundle,
-    messages::{ClientMessage, MessageBuffer, ServerMessage},
+    messages::{ClientMessage, MessageBuffer, NetMessage},
     sockets::{NetServerSocket, real::RealNetServerSocket},
 };
 
@@ -78,7 +74,7 @@ fn server_handle_messages(
 ) {
     for (msg, peer) in buffer.messages.drain(..) {
         // TODO: process header
-        for element in msg.body {
+        for element in msg.body_elements() {
             match element {
                 ClientBodyElement::Dummy(_cow) => {}
                 ClientBodyElement::Register => {
@@ -100,23 +96,25 @@ fn server_send_thingies(
     mut socket: ResMut<NetServerSocket>,
     query: Query<(&NetId, &Transform, &Velocity), With<ThingyMarker>>,
 ) {
-    let bodies = query
-        .iter()
-        .filter_map(|(net_id, transform, vel)| {
-            rand::random_bool(0.05).then_some(ThingyNet {
-                net_id: *net_id,
-                physics: NetPhysicsObjectBundle {
-                    transform: Networked(*transform),
-                    velocity: Networked(*vel),
-                },
-            })
-        })
-        .map(ServerBodyElement::Thingy);
+    let mut message = NetMessage::new(NetHeader {});
 
-    let message = ServerMessage {
-        header: NetHeader {},
-        body: bodies.collect(),
-    };
+    // TODO: sort by priority
+    for (net_id, transform, vel) in query.iter() {
+        if rand::random_bool(0.95) {
+            continue;
+        }
+        let thingy_net = ThingyNet {
+            net_id: *net_id,
+            physics: NetPhysicsObjectBundle {
+                transform: Networked(*transform),
+                velocity: Networked(*vel),
+            },
+        };
+        let elem = ServerBodyElement::Thingy(thingy_net);
+        if message.try_push(elem).is_err() {
+            break;
+        }
+    }
 
     socket
         .send_to_all(message, clients.0.iter().copied())

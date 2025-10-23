@@ -1,14 +1,5 @@
-use std::collections::BTreeSet;
-
 use bevy::{
-    app::{FixedUpdate, Plugin, Startup},
-    ecs::{
-        bundle::Bundle,
-        component::Component,
-        query::With,
-        resource::Resource,
-        system::{Commands, Query, Res, ResMut},
-    },
+    ecs::{bundle::Bundle, component::Component},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody, Velocity};
@@ -47,7 +38,7 @@ impl Thingy {
     const RADIUS: f32 = 25.0;
     const DENSITY: f32 = Player::DENSITY / 2.0;
 
-    pub(crate) fn networked_bundle(net: ThingyNet) -> Self {
+    pub(crate) fn bundle(net: ThingyNet) -> Self {
         Self {
             marker: ThingyMarker,
             transform: net.physics.transform.0,

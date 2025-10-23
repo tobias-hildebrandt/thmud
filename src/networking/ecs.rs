@@ -1,5 +1,4 @@
 use bevy::{
-    app::Plugin,
     ecs::{bundle::Bundle, component::Component},
     transform::components::Transform,
 };
@@ -36,12 +35,6 @@ client system order:
 
 #[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, Default)]
 pub(crate) struct Networked<T: Component>(pub(crate) T);
-
-impl<T: Component> Networked<T> {
-    pub(crate) const fn new(component: T) -> Self {
-        Self(component)
-    }
-}
 
 impl<T: Component> From<T> for Networked<T> {
     fn from(component: T) -> Self {

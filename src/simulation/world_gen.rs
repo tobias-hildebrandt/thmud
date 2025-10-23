@@ -11,10 +11,7 @@ use bevy::{
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::{
-    networking::ecs::{NetId, NetPhysicsObjectBundle, Networked},
-    simulation::player::Player,
-};
+use crate::networking::ecs::{NetId, NetPhysicsObjectBundle, Networked};
 
 use super::thingy::{Thingy, ThingyNet};
 
@@ -119,7 +116,7 @@ pub(crate) fn chunk_spawning(
                     let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
                     let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
 
-                    let thingy_bundle = Thingy::networked_bundle(ThingyNet {
+                    let thingy_bundle = Thingy::bundle(ThingyNet {
                         // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
                         net_id: NetId(rng.random()),
                         physics: NetPhysicsObjectBundle {

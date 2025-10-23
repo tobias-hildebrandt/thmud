@@ -1,5 +1,5 @@
 use bevy::{
-    DefaultPlugins, MinimalPlugins,
+    DefaultPlugins,
     app::{App, PluginGroup},
     window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };

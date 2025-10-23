@@ -1,14 +1,12 @@
 use bevy::{
     app::{FixedUpdate, Plugin},
-    ecs::{bundle::Bundle, system::Query},
+    ecs::system::Query,
     math::Vec2,
-    transform::components::Transform,
 };
 use bevy_rapier2d::{
     plugin::{NoUserData, RapierConfiguration, RapierContextInitialization, RapierPhysicsPlugin},
-    prelude::{Collider, RigidBody, Velocity},
+    prelude::Velocity,
 };
-use serde::{Deserialize, Serialize};
 
 const FRICTION_COEFFICIENT: f32 = 0.9;
 const STOP_SPEED: f32 = 0.5;

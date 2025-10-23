@@ -29,7 +29,7 @@ impl NetClientSocket {
         }
     }
 
-    pub(crate) fn send(&mut self, message: &impl Serialize) -> Result<(), SendOrSerializeError> {
+    pub(crate) fn send(&mut self, message: impl Serialize) -> Result<(), SendOrSerializeError> {
         match self {
             NetClientSocket::Real(real) => {
                 real.socket_and_buffer.send_to(message, real.server_addr)
