@@ -1,5 +1,9 @@
 use bevy::{
-    ecs::{bundle::Bundle, component::Component},
+    ecs::{
+        bundle::Bundle,
+        component::Component,
+        query::{QueryData, WorldQuery},
+    },
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
@@ -34,46 +38,47 @@ client system order:
 */
 
 #[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, Default)]
-pub(crate) struct Networked<T: Component>(pub(crate) T);
+#[serde(transparent)]
+pub(crate) struct Networked<T>(pub(crate) T);
 
-impl<T: Component> From<T> for Networked<T> {
+impl<T> From<T> for Networked<T> {
     fn from(component: T) -> Self {
         Self(component)
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+// TODO: write derive macro
+pub(crate) trait NetQueryable<'a>: From<<Self::Query as QueryData>::Item<'a>> {
+    type Query: QueryData;
+}
+
+#[derive(
+    Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub(crate) struct NetId(pub(crate) u128);
 
-impl From<u128> for NetId {
-    fn from(value: u128) -> Self {
-        Self(value)
-    }
-}
-
-impl From<NetId> for u128 {
-    fn from(value: NetId) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Bundle, Deserialize, Serialize)]
-pub(crate) struct NetPhysicsObjectBundle {
+#[derive(Debug, Default, Bundle, Deserialize, Serialize)]
+pub(crate) struct NetPhysicsBundle {
     pub(crate) transform: Networked<Transform>,
     pub(crate) velocity: Networked<Velocity>,
 }
 
-// #[derive(Debug, Serialize, Deserialize)]
-// pub enum MassProperties {
-//     Density(f32),
-//     Mass(f32),
-// }
+#[derive(Debug, QueryData)]
+#[query_data(derive(Debug))]
+pub(crate) struct NetPhysicsBundleQuery {
+    pub(crate) transform: &'static Transform,
+    pub(crate) velocity: &'static Velocity,
+}
 
-// impl From<MassProperties> for ColliderMassProperties {
-//     fn from(value: MassProperties) -> Self {
-//         match value {
-//             MassProperties::Density(d) => Self::Density(d),
-//             MassProperties::Mass(m) => Self::Mass(m),
-//         }
-//     }
-// }
+impl<'a> NetQueryable<'a> for NetPhysicsBundle {
+    type Query = NetPhysicsBundleQuery;
+}
+
+impl<'a> From<NetPhysicsBundleQueryItem<'a>> for NetPhysicsBundle {
+    fn from(query: NetPhysicsBundleQueryItem) -> Self {
+        Self {
+            transform: (*query.transform).into(),
+            velocity: (*query.velocity).into(),
+        }
+    }
+}

@@ -29,7 +29,7 @@ impl NetClientSocket {
         }
     }
 
-    pub(crate) fn send(&mut self, message: impl Serialize) -> Result<(), SendOrSerializeError> {
+    pub(crate) fn send(&mut self, message: &ClientMessage) -> Result<(), SendOrSerializeError> {
         match self {
             NetClientSocket::Real(real) => {
                 real.socket_and_buffer.send_to(message, real.server_addr)
@@ -62,13 +62,23 @@ impl NetServerSocket {
 
     pub(crate) fn send_to_all(
         &mut self,
-        message: ServerMessage,
+        message: &ServerMessage,
         addresses: impl Iterator<Item = SocketAddr>,
     ) -> Result<(), SendOrSerializeError> {
         // TODO: do not stop on single failure
         for target in addresses {
-            self.0.socket_and_buffer.send_to(&message, target)?;
+            self.0.socket_and_buffer.send_to(message, target)?;
         }
+        Ok(())
+    }
+
+    pub(crate) fn send_to(
+        &mut self,
+        message: &ServerMessage,
+        address: SocketAddr,
+    ) -> Result<(), SendOrSerializeError> {
+        self.0.socket_and_buffer.send_to(message, address)?;
+
         Ok(())
     }
 

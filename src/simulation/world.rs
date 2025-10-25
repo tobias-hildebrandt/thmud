@@ -14,7 +14,7 @@ use bevy::{
 use bevy_rapier2d::prelude::Velocity;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::networking::ecs::{NetId, NetPhysicsObjectBundle, Networked};
+use crate::networking::ecs::{NetId, NetPhysicsBundle, Networked};
 
 use super::thingy::{Thingy, ThingyMarker, ThingyNet};
 
@@ -23,8 +23,8 @@ pub(crate) struct WorldSeed(i64);
 
 fn initialize_world_seed(mut commands: Commands) {
     let world_seed = std::env::var("WORLD_SEED")
-        .map_err(|_e| ())
-        .and_then(|seed| seed.parse().map_err(|_e| ()))
+        .ok()
+        .and_then(|seed| seed.parse().ok())
         .unwrap_or(0);
     commands.insert_resource(WorldSeed(world_seed));
 }
@@ -122,7 +122,7 @@ pub(crate) fn chunk_spawning(
                     let thingy_bundle = Thingy::bundle(ThingyNet {
                         // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
                         net_id: NetId(rng.random()),
-                        physics: NetPhysicsObjectBundle {
+                        physics: NetPhysicsBundle {
                             transform: Networked(Transform {
                                 translation: Vec3 {
                                     x: (chunk.x * CHUNK_SIZE + chunk_offset_x) as f32,

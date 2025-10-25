@@ -22,6 +22,8 @@ impl NetSocketAndBuffer {
             .set_nonblocking(true)
             .expect("unable to set nonblocking socket, platform unsupported");
 
+        println!("socket bound to {:?}", socket.local_addr());
+
         Self {
             socket,
             buffer: [0; Self::BUFFER_SIZE],

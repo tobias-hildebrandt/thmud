@@ -1,12 +1,12 @@
 use bevy::{
-    ecs::{bundle::Bundle, component::Component},
+    ecs::{bundle::Bundle, component::Component, query::QueryData},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody, Velocity};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    networking::ecs::{NetId, NetPhysicsObjectBundle},
+    networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery, NetQueryable},
     simulation::player::Player,
 };
 
@@ -21,6 +21,7 @@ pub(crate) struct Thingy {
     pub(crate) rigid_body: RigidBody,
     pub(crate) collider: Collider,
     pub(crate) mass_properties: ColliderMassProperties,
+
     pub(crate) net: ThingyNet,
 }
 
@@ -31,7 +32,33 @@ pub(crate) struct Thingy {
 pub(crate) struct ThingyNet {
     pub(crate) net_id: NetId,
     // TODO: technically unnecessary on server
-    pub(crate) physics: NetPhysicsObjectBundle,
+    pub(crate) physics: NetPhysicsBundle,
+}
+
+#[derive(Debug, QueryData)]
+#[query_data(derive(Debug))]
+pub(crate) struct ThingyNetQuery {
+    net_id: &'static NetId,
+    physics: NetPhysicsBundleQuery,
+}
+
+impl<'a> ThingyNetQueryItem<'a> {
+    pub(crate) fn transform(&self) -> Transform {
+        *self.physics.transform
+    }
+}
+
+impl<'a> NetQueryable<'a> for ThingyNet {
+    type Query = ThingyNetQuery;
+}
+
+impl<'a> From<ThingyNetQueryItem<'a>> for ThingyNet {
+    fn from(query: ThingyNetQueryItem) -> Self {
+        Self {
+            net_id: *query.net_id,
+            physics: query.physics.into(),
+        }
+    }
 }
 
 impl Thingy {

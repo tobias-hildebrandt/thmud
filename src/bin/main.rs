@@ -12,17 +12,20 @@ use bevy::{
     window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };
 use thmud::{
-    assets::GameAssetPlugin,
-    camera::GameCameraPlugin,
-    debug::GameDebugPlugin,
-    input::GameInputPlugin,
+    display::{assets::GameAssetPlugin, camera::GameCameraPlugin, debug::GameDebugPlugin},
     networking::{client::GameClientPlugin, server::GameServerPlugin},
-    simulation::{physics::GamePhysicsPlugin, player::GamePlayerPlugin, world::GameWorldGenPlugin},
+    simulation::{
+        input::{GameInputPlugin, GameLocalInputPlugin},
+        physics::GamePhysicsPlugin,
+        player::GamePlayerPlugin,
+        world::GameWorldGenPlugin,
+    },
 };
 
 fn main() {
     let mut app = App::new();
     if std::env::args().any(|a| a == "client") {
+        // client
         let name = "thmud client".to_string();
 
         // bevy plugins
@@ -30,7 +33,7 @@ fn main() {
             primary_window: Some(Window {
                 title: name.clone(),
                 name: Some(name.clone()),
-                resolution: (1920., 900.).into(),
+                resolution: (1280., 720.).into(),
                 position: WindowPosition::Centered(MonitorSelection::Primary),
                 ..Default::default()
             }),
@@ -40,12 +43,15 @@ fn main() {
         // game plugins
         app.add_plugins(GameAssetPlugin);
         app.add_plugins(GameCameraPlugin);
+        app.add_plugins(GameLocalInputPlugin);
         app.add_plugins(GameInputPlugin);
         app.add_plugins(GamePlayerPlugin);
         app.add_plugins(GameDebugPlugin);
         app.add_plugins(GamePhysicsPlugin);
         app.add_plugins(GameClientPlugin);
     } else {
+        // server
+
         // bevy plugins
         // TODO: re-assess necessary plugins
         app.add_plugins((
@@ -64,6 +70,8 @@ fn main() {
         // game plugins
         app.add_plugins(GamePhysicsPlugin);
         app.add_plugins(GameWorldGenPlugin);
+        app.add_plugins(GameInputPlugin);
+        app.add_plugins(GamePlayerPlugin);
         app.add_plugins(GameServerPlugin);
     }
 

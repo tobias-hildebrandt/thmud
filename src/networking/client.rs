@@ -1,20 +1,25 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 use bevy::{
     app::{FixedPreUpdate, Plugin},
     ecs::{
         component::{Component, Mutable},
         entity::Entity,
+        query::With,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, ResMut},
     },
     transform::components::Transform,
 };
-use bevy_rapier2d::prelude::Velocity;
+use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 
 use crate::{
     networking::messages::{ClientBodyElement, NetHeader, ServerBodyElement},
-    simulation::thingy::Thingy,
+    simulation::{
+        input::{PlayerInput, read_local_inputs},
+        player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
+        thingy::{Thingy, ThingyNet},
+    },
 };
 
 use super::{
@@ -33,14 +38,10 @@ impl Plugin for GameClientPlugin {
             // TODO: load/deser actions from filesystem?
             NetClientSocket::Debug(DebugNetSocket::new())
         };
-        socket
-            .send({
-                let mut m = ClientMessage::new(NetHeader {});
-                m.try_push(ClientBodyElement::Register)
-                    .expect("unable to fit register in client message");
-                m
-            })
-            .unwrap();
+        let mut m = ClientMessage::new(NetHeader {});
+        m.try_push_back(ClientBodyElement::Register)
+            .expect("unable to fit register in client message");
+        socket.send(&m).unwrap();
 
         app.insert_resource(socket);
 
@@ -52,8 +53,11 @@ impl Plugin for GameClientPlugin {
                 (
                     client_apply_networked::<Velocity>,
                     client_apply_networked::<Transform>,
+                    client_apply_networked::<PlayerInput>,
+                    client_apply_networked::<ExternalForce>,
                 )
                     .after(client_handle_messages),
+                (client_send_inputs.after(read_local_inputs)),
             ),
         );
 
@@ -65,7 +69,7 @@ type ClientBuffer = MessageBuffer<ServerMessage<'static>>;
 
 fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<ClientBuffer>) {
     while let Ok(Some((msg, peer))) = socket.recv() {
-        println!("client recv msg from peer {}", peer);
+        // println!("client recv msg from peer {}", peer);
 
         if peer != socket.server_addr() {
             // drop it
@@ -76,15 +80,31 @@ fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<
     }
 }
 
+#[derive(Debug)]
+struct NetsById<T>(HashMap<NetId, T>);
+
+impl<T> Default for NetsById<T> {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+#[derive(Debug, Default)]
+struct HandleMessageState {
+    // entities spawned so far, so we don't double-spawn them
+    spawned: HashSet<NetId>,
+    my_player_id: Option<PlayerId>,
+
+    thingy: NetsById<ThingyNet>,
+    player: NetsById<PlayerNet>,
+}
+
 fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
-    // TODO: btreemap of NetId -> Entity?
     query: Query<(Entity, &NetId)>,
     mut commands: Commands,
 ) {
-    // track spawns to prevent double-spawns
-    // TODO: move spawns to post-loop, only spawn most-recent version of net id object
-    let mut spawned = BTreeSet::new();
+    let mut state = HandleMessageState::default();
 
     // println!("client handling messages");
     for msg in buffer.messages.drain(..) {
@@ -93,34 +113,58 @@ fn client_handle_messages(
 
         // process and sort bodies
 
-        // TODO: vec to support multiple updates per net_id
-        let mut thingies = BTreeMap::new();
-
         for body in msg.body_elements() {
             // println!("client handling body: {:?}", body);
             match body {
                 ServerBodyElement::Dummy(_cow) => {}
+                ServerBodyElement::YourPlayerId(player_id) => {
+                    state.my_player_id = Some(player_id);
+                }
                 ServerBodyElement::Thingy(thingy_net) => {
-                    thingies.insert(thingy_net.net_id, thingy_net);
+                    state.thingy.0.insert(thingy_net.net_id, thingy_net);
+                }
+                ServerBodyElement::Player(player_net) => {
+                    state.player.0.insert(player_net.net_id, player_net);
                 }
             }
         }
+    }
 
-        // update for pre-existing entity
-        for (entity, our_net_id) in query {
-            if let Some(t) = thingies.remove(our_net_id) {
-                // println!("updating networked component");
-                // override networked bundle
-                commands.entity(entity).insert(t.physics);
-            }
+    // update for pre-existing entity
+    for (entity, net_id) in query {
+        if let Some(thingy) = state.thingy.0.remove(net_id) {
+            commands.entity(entity).insert(thingy);
         }
 
-        // spawn new entity
-        for (net_id, new_thingy) in thingies {
-            // do not spawn twice
-            if !spawned.contains(&net_id) {
-                spawned.insert(net_id);
-                commands.spawn(Thingy::bundle(new_thingy));
+        if let Some(player) = state.player.0.remove(net_id) {
+            let mut commands = commands.entity(entity);
+            if state.my_player_id.is_some_and(|i| i == player.player_id.0) {
+                commands.insert(LocalPlayerMarker);
+            }
+
+            commands.insert(player);
+        }
+    }
+
+    // spawn new thingies
+    for (net_id, thingy) in state.thingy.0 {
+        // do not spawn twice
+        if !state.spawned.contains(&net_id) {
+            state.spawned.insert(net_id);
+            commands.spawn(Thingy::bundle(thingy));
+        }
+    }
+
+    // spawn new players
+    for (net_id, player) in state.player.0 {
+        // do not spawn twice
+        if !state.spawned.contains(&net_id) {
+            state.spawned.insert(net_id);
+
+            if state.my_player_id.is_some_and(|i| i == player.player_id.0) {
+                commands.spawn((Player::bundle(player), LocalPlayerMarker));
+            } else {
+                commands.spawn(Player::bundle(player));
             }
         }
     }
@@ -133,4 +177,23 @@ where
     for (mut real, networked) in query {
         *real = networked.0.clone();
     }
+}
+
+// TODO: client send inputs
+fn client_send_inputs(
+    mut socket: ResMut<NetClientSocket>,
+    query: Query<&PlayerInput, With<LocalPlayerMarker>>,
+) {
+    let Ok(inputs) = query.single() else {
+        return;
+    };
+
+    let mut message = ClientMessage::new(NetHeader {});
+
+    if let Err(e) = message.try_push_back(ClientBodyElement::Input(*inputs)) {
+        println!("cannot push inputs into client message: {:?}", e);
+        return;
+    }
+
+    socket.send(&message).unwrap();
 }

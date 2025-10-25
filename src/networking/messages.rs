@@ -1,9 +1,13 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::VecDeque};
 
 use bevy::ecs::resource::Resource;
 use serde::{Deserialize, Serialize};
 
-use crate::simulation::thingy::ThingyNet;
+use crate::simulation::{
+    input::PlayerInput,
+    player::{PlayerId, PlayerNet},
+    thingy::ThingyNet,
+};
 
 #[derive(Debug, Resource)]
 pub(crate) struct MessageBuffer<T> {
@@ -34,10 +38,11 @@ pub(crate) struct MessageWouldExceedMax {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct NetMessage<T: Serialize> {
     pub(crate) header: NetHeader,
-    body_elements: Vec<T>,
+    body_elements: VecDeque<T>,
 }
 
 impl<T: Serialize> NetMessage<T> {
+    // TODO: dynamically change this based on network behavior?
     const MAX_SIZE: usize = 508;
 
     pub(crate) fn new(header: NetHeader) -> Self {
@@ -47,20 +52,36 @@ impl<T: Serialize> NetMessage<T> {
         }
     }
 
-    pub(crate) fn try_push(&mut self, message: T) -> Result<(), MessageWouldExceedMax> {
+    pub(crate) fn try_push_back(&mut self, message: T) -> Result<(), MessageWouldExceedMax> {
         let current_size = self.current_serialized_size();
-        if current_size + serialized_size(&message) > Self::MAX_SIZE {
+        let message_size = serialized_size(&message);
+        if current_size + message_size > Self::MAX_SIZE {
             return Err(MessageWouldExceedMax {
                 current: current_size,
                 max: Self::MAX_SIZE,
             });
         }
-        self.body_elements.push(message);
+        self.body_elements.push_back(message);
         Ok(())
     }
 
-    pub(crate) fn body_elements(self) -> Vec<T> {
+    // evicts and returns tail element if message would exceed max
+    // TODO: handle case where given message is too large all by itself
+    pub(crate) fn push_front(&mut self, message: T) -> Option<T> {
+        self.body_elements.push_front(message);
+        if self.current_serialized_size() > Self::MAX_SIZE {
+            self.body_elements.pop_back()
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn body_elements(self) -> VecDeque<T> {
         self.body_elements
+    }
+
+    pub(crate) fn get_body_elements(&self) -> &VecDeque<T> {
+        &self.body_elements
     }
 
     fn current_serialized_size(&self) -> usize {
@@ -86,12 +107,16 @@ pub(crate) struct NetHeader {}
 pub(crate) enum ClientBodyElement<'data> {
     Dummy(Cow<'data, ()>),
     Register,
+    Unregister,
+    Input(PlayerInput),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ServerBodyElement<'data> {
     Dummy(Cow<'data, ()>),
+    YourPlayerId(PlayerId),
     Thingy(ThingyNet),
+    Player(PlayerNet),
 }
 
 fn serialized_size(ser: &impl Serialize) -> usize {
