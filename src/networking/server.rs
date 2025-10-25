@@ -69,7 +69,8 @@ fn server_recv_messages(mut server: ResMut<NetServerSocket>, mut buffer: ResMut<
 }
 
 // TODO: btreemap of NetId -> Entity?
-// TODO: each message into separate Resource queues? then run system for each queue
+// TODO: improve parallelism, each message type into separate resources queues,
+//       then run a system for each type
 fn server_handle_messages(
     mut buffer: ResMut<ServerBuffer>,
     mut clients: ResMut<Clients>,

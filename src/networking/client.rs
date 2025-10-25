@@ -101,6 +101,7 @@ struct HandleMessageState {
     player: NetsById<PlayerNet>,
 }
 
+// TODO: look into exclusive system instead of using commands
 fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
     query: Query<(Entity, &NetId)>,
