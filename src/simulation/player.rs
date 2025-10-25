@@ -1,13 +1,10 @@
-use std::ops::Deref;
-
 use bevy::{
-    app::{FixedUpdate, Plugin, Startup},
+    app::{FixedUpdate, Plugin},
     ecs::{
         bundle::Bundle,
         component::Component,
         query::{QueryData, With},
-        schedule::IntoScheduleConfigs,
-        system::{Commands, Query},
+        system::Query,
     },
     text::{Text2d, TextColor},
     transform::components::Transform,
@@ -18,9 +15,7 @@ use bevy_rapier2d::prelude::{
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::networking::ecs::{
-    NetId, NetPhysicsBundle, NetPhysicsBundleQuery, NetQueryable, Networked,
-};
+use crate::networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery, Networked};
 use crate::networking::serde_helpers::{ExternalForceSerde, FromIntoNetworked};
 
 use super::input::PlayerInput;
@@ -102,10 +97,6 @@ impl<'a> PlayerNetQueryItem<'a> {
     pub(crate) fn transform(&self) -> Transform {
         *self.physics.transform
     }
-}
-
-impl<'a> NetQueryable<'a> for PlayerNet {
-    type Query = PlayerNetQuery;
 }
 
 impl<'a> From<PlayerNetQueryItem<'a>> for PlayerNet {

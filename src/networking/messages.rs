@@ -80,10 +80,6 @@ impl<T: Serialize> NetMessage<T> {
         self.body_elements
     }
 
-    pub(crate) fn get_body_elements(&self) -> &VecDeque<T> {
-        &self.body_elements
-    }
-
     fn current_serialized_size(&self) -> usize {
         let mut size = 0;
         size += serialized_size(&self.header);

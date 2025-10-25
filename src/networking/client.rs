@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::{
-    app::{FixedPreUpdate, Plugin},
+    app::{AppExit, FixedPreUpdate, Plugin},
     ecs::{
         component::{Component, Mutable},
         entity::Entity,
+        event::EventReader,
         query::With,
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, ResMut},
@@ -16,7 +17,7 @@ use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 use crate::{
     networking::messages::{ClientBodyElement, NetHeader, ServerBodyElement},
     simulation::{
-        input::{PlayerInput, read_local_inputs},
+        input::{PlayerInput, input_quit, read_local_inputs},
         player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
         thingy::{Thingy, ThingyNet},
     },
@@ -58,6 +59,7 @@ impl Plugin for GameClientPlugin {
                 )
                     .after(client_handle_messages),
                 (client_send_inputs.after(read_local_inputs)),
+                client_send_disconnect.after(input_quit),
             ),
         );
 
@@ -196,4 +198,19 @@ fn client_send_inputs(
     }
 
     socket.send(&message).unwrap();
+}
+
+fn client_send_disconnect(
+    mut socket: ResMut<NetClientSocket>,
+    mut event_reader: EventReader<AppExit>,
+) {
+    if event_reader.read().next().is_some() {
+        let mut message = ClientMessage::new(NetHeader {});
+        if let Err(e) = message.try_push_back(ClientBodyElement::Unregister) {
+            println!("cannot push unregister into client message: {:?}", e);
+            return;
+        }
+
+        socket.send(&message).unwrap();
+    }
 }

@@ -6,7 +6,7 @@ use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody, Veloci
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery, NetQueryable},
+    networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery},
     simulation::player::Player,
 };
 
@@ -46,10 +46,6 @@ impl<'a> ThingyNetQueryItem<'a> {
     pub(crate) fn transform(&self) -> Transform {
         *self.physics.transform
     }
-}
-
-impl<'a> NetQueryable<'a> for ThingyNet {
-    type Query = ThingyNetQuery;
 }
 
 impl<'a> From<ThingyNetQueryItem<'a>> for ThingyNet {

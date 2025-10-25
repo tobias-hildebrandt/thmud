@@ -3,7 +3,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use bevy::ecs::resource::Resource;
 use debug::DebugNetSocket;
 use real::{RealNetClientSocket, RealNetServerSocket, SendOrSerializeError};
-use serde::Serialize;
 
 use super::messages::{ClientMessage, ServerMessage};
 
@@ -77,9 +76,7 @@ impl NetServerSocket {
         message: &ServerMessage,
         address: SocketAddr,
     ) -> Result<(), SendOrSerializeError> {
-        self.0.socket_and_buffer.send_to(message, address)?;
-
-        Ok(())
+        self.0.socket_and_buffer.send_to(message, address)
     }
 
     pub(crate) fn address(&self) -> Result<SocketAddr, std::io::Error> {

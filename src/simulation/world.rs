@@ -16,7 +16,10 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::networking::ecs::{NetId, NetPhysicsBundle, Networked};
 
-use super::thingy::{Thingy, ThingyMarker, ThingyNet};
+use super::{
+    player::PlayerMarker,
+    thingy::{Thingy, ThingyMarker, ThingyNet},
+};
 
 #[derive(Debug, Resource)]
 pub(crate) struct WorldSeed(i64);
@@ -56,6 +59,29 @@ impl Chunk {
             })
         })
     }
+
+    fn spawn_thingies(&self, mut commands: Commands, rng: &mut StdRng) {
+        let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
+        let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
+
+        let thingy_bundle = Thingy::bundle(ThingyNet {
+            // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
+            net_id: NetId(rng.random()),
+            physics: NetPhysicsBundle {
+                transform: Networked(Transform {
+                    translation: Vec3 {
+                        x: (self.x * CHUNK_SIZE + chunk_offset_x) as f32,
+                        y: (self.y * CHUNK_SIZE + chunk_offset_y) as f32,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+                velocity: Default::default(),
+            },
+        });
+
+        commands.spawn(thingy_bundle);
+    }
 }
 
 impl From<ChunkId> for Chunk {
@@ -93,54 +119,38 @@ pub(crate) fn chunk_spawning(
     mut commands: Commands,
     world_seed: Res<WorldSeed>,
     mut spawned_chunks: ResMut<SpawnedChunks>,
+    query: Query<&Transform, With<PlayerMarker>>,
 ) {
-    let current_chunk = Chunk { x: 0, y: 0 };
+    for player_transform in query {
+        let player_chunk = Chunk::from_transform(player_transform);
 
-    for chunk in current_chunk.iter_nearby() {
-        let chunk_id = ChunkId::from(chunk);
-        if !spawned_chunks.ids.contains(&chunk_id) {
-            // spawn the chunk!
+        for chunk in player_chunk.iter_nearby() {
+            let chunk_id = ChunkId::from(chunk);
+            if !spawned_chunks.ids.contains(&chunk_id) {
+                // spawn the chunk!
 
-            let chunk_seed = world_seed
-                .0
-                .wrapping_mul(i64::from_ne_bytes(chunk_id.0.to_ne_bytes()));
+                // RNG seed based off of world seed and chunk ID
+                let chunk_seed = world_seed
+                    .0
+                    .wrapping_mul(i64::from_ne_bytes(chunk_id.0.to_ne_bytes()));
 
-            // RNG seed based off of world seed and chunk ID
-            let mut rng = StdRng::seed_from_u64(u64::from_ne_bytes(chunk_seed.to_ne_bytes()));
+                let mut rng = StdRng::seed_from_u64(u64::from_ne_bytes(chunk_seed.to_ne_bytes()));
 
-            // calculate number of thingies to spawn for this chunk
-            let num_thingies = rng.random_range(0..MAX_THINGIES_PER_CHUNK);
+                // calculate number of thingies to spawn for this chunk
+                let num_thingies = rng.random_range(0..MAX_THINGIES_PER_CHUNK);
 
-            for _ in 0..num_thingies {
-                // chance to spawn thingy in chunk
-                let should_spawn_thingy = rng.random_bool(0.3);
+                for _ in 0..num_thingies {
+                    // chance to spawn thingy in chunk
+                    let should_spawn_thingy = rng.random_bool(0.3);
 
-                if should_spawn_thingy {
-                    let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
-                    let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
-
-                    let thingy_bundle = Thingy::bundle(ThingyNet {
-                        // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
-                        net_id: NetId(rng.random()),
-                        physics: NetPhysicsBundle {
-                            transform: Networked(Transform {
-                                translation: Vec3 {
-                                    x: (chunk.x * CHUNK_SIZE + chunk_offset_x) as f32,
-                                    y: (chunk.y * CHUNK_SIZE + chunk_offset_y) as f32,
-                                    ..Default::default()
-                                },
-                                ..Default::default()
-                            }),
-                            velocity: Default::default(),
-                        },
-                    });
-
-                    commands.spawn(thingy_bundle);
+                    if should_spawn_thingy {
+                        chunk.spawn_thingies(commands.reborrow(), &mut rng);
+                    }
                 }
-            }
 
-            // chunk was "spawned" even if we didn't need to spawn any thingies
-            spawned_chunks.ids.insert(chunk_id);
+                // chunk was "spawned" even if we didn't need to spawn any thingies
+                spawned_chunks.ids.insert(chunk_id);
+            }
         }
     }
 }

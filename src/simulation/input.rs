@@ -73,7 +73,10 @@ fn apply_movement_inputs(
 }
 
 /// System handling Ctrl+Q quit.
-fn input_quit(buttons: Res<ButtonInput<KeyCode>>, mut event_writer: EventWriter<AppExit>) {
+pub(crate) fn input_quit(
+    buttons: Res<ButtonInput<KeyCode>>,
+    mut event_writer: EventWriter<AppExit>,
+) {
     if buttons.all_pressed([KeyCode::ControlLeft, KeyCode::KeyQ]) {
         event_writer.write(AppExit::Success);
     }

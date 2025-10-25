@@ -1,9 +1,5 @@
 use bevy::{
-    ecs::{
-        bundle::Bundle,
-        component::Component,
-        query::{QueryData, WorldQuery},
-    },
+    ecs::{bundle::Bundle, component::Component, query::QueryData},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
@@ -47,11 +43,6 @@ impl<T> From<T> for Networked<T> {
     }
 }
 
-// TODO: write derive macro
-pub(crate) trait NetQueryable<'a>: From<<Self::Query as QueryData>::Item<'a>> {
-    type Query: QueryData;
-}
-
 #[derive(
     Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
@@ -68,10 +59,6 @@ pub(crate) struct NetPhysicsBundle {
 pub(crate) struct NetPhysicsBundleQuery {
     pub(crate) transform: &'static Transform,
     pub(crate) velocity: &'static Velocity,
-}
-
-impl<'a> NetQueryable<'a> for NetPhysicsBundle {
-    type Query = NetPhysicsBundleQuery;
 }
 
 impl<'a> From<NetPhysicsBundleQueryItem<'a>> for NetPhysicsBundle {

@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, collections::HashMap, net::SocketAddr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 
 use bevy::{
     app::{FixedPostUpdate, FixedPreUpdate, Plugin},
@@ -16,7 +19,7 @@ use crate::{
     simulation::{
         input::PlayerInput,
         player::{Player, PlayerMarker, PlayerNet, PlayerNetQuery},
-        thingy::{ThingyMarker, ThingyNet, ThingyNetQuery, ThingyNetQueryItem},
+        thingy::{ThingyMarker, ThingyNet, ThingyNetQuery},
     },
 };
 
@@ -73,6 +76,7 @@ fn server_handle_messages(
     mut commands: Commands,
     mut input_query: Query<&mut PlayerInput>,
 ) {
+    let mut despawned = HashSet::new();
     for (msg, peer) in buffer.messages.drain(..) {
         // TODO: process header
         for element in msg.body_elements() {
@@ -88,6 +92,8 @@ fn server_handle_messages(
                     });
                 }
                 ClientBodyElement::Unregister => {
+                    println!("unregistering peer {peer}, despawning");
+
                     // remove from clients
                     let entity = clients.0.remove(&peer);
 
@@ -95,8 +101,15 @@ fn server_handle_messages(
                     if let Some(entity) = entity {
                         commands.entity(entity).despawn();
                     }
+
+                    despawned.insert(peer);
                 }
                 ClientBodyElement::Input(new_input) => {
+                    // ignore despawned peers
+                    if despawned.contains(&peer) {
+                        continue;
+                    }
+
                     let Some(player) = clients.0.get(&peer) else {
                         println!("peer has no player entity");
                         continue;
@@ -161,7 +174,7 @@ fn server_send(
         // TODO: sort by priority
 
         for thingy_query_item in thingies.iter().sort_by::<ThingyNetQuery>(|a, b| {
-            // TODO: move into another function, add staleness, etc.
+            // TODO: move into another function, add stale-ness, etc.
             let distance_a = a
                 .transform()
                 .translation
@@ -173,9 +186,6 @@ fn server_send(
 
             f32::total_cmp(&distance_a, &distance_b)
         }) {
-            // if rand::random_bool(0.95) {
-            //     continue;
-            // }
             let thingy_net = ThingyNet::from(thingy_query_item);
             let elem = ServerBodyElement::Thingy(thingy_net);
             if message.try_push_back(elem).is_err() {
