@@ -7,8 +7,9 @@ use bevy::{
         entity::Entity,
         event::EventReader,
         query::With,
+        resource::Resource,
         schedule::IntoScheduleConfigs,
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query, Res, ResMut},
     },
     transform::components::Transform,
 };
@@ -45,11 +46,14 @@ impl Plugin for GameClientPlugin {
         socket.send(&m).unwrap();
 
         app.insert_resource(socket);
+        app.insert_resource(ClientBuffer::new());
+        app.insert_resource(NetObjectUpdates::default());
 
         app.add_systems(
             FixedPreUpdate,
             (
                 client_recv_messages.before(client_handle_messages),
+                clear_net_object_updates.before(client_handle_messages),
                 client_handle_messages,
                 (
                     client_apply_networked::<Velocity>,
@@ -57,13 +61,12 @@ impl Plugin for GameClientPlugin {
                     client_apply_networked::<PlayerInput>,
                     client_apply_networked::<ExternalForce>,
                 )
-                    .after(client_handle_messages),
+                    .after(client_handle_messages)
+                    .after(clear_net_object_updates),
                 (client_send_inputs.after(read_local_inputs)),
                 client_send_disconnect.after(input_quit),
             ),
         );
-
-        app.insert_resource(ClientBuffer::new());
     }
 }
 
@@ -81,6 +84,10 @@ fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<
         buffer.messages.push(msg);
     }
 }
+
+/// Stores IDs of all net objects that were changed this frame.
+#[derive(Debug, Resource, Default)]
+struct NetObjectUpdates(HashSet<NetId>);
 
 #[derive(Debug)]
 struct NetsById<T>(HashMap<NetId, T>);
@@ -106,6 +113,7 @@ fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
     query: Query<(Entity, &NetId)>,
     mut commands: Commands,
+    mut updates: ResMut<NetObjectUpdates>,
 ) {
     let mut state = HandleMessageState::default();
 
@@ -135,8 +143,10 @@ fn client_handle_messages(
 
     // update for pre-existing entity
     for (entity, net_id) in query {
+        let mut updated = false;
         if let Some(thingy) = state.thingy.0.remove(net_id) {
             commands.entity(entity).insert(thingy);
+            updated = true;
         }
 
         if let Some(player) = state.player.0.remove(net_id) {
@@ -146,6 +156,13 @@ fn client_handle_messages(
             }
 
             commands.insert(player);
+            updated = true;
+        }
+
+        // make sure the later systems actually apply the change
+        // TODO: interpolation
+        if updated {
+            updates.0.insert(*net_id);
         }
     }
 
@@ -173,12 +190,22 @@ fn client_handle_messages(
     }
 }
 
-fn client_apply_networked<T>(query: Query<(&mut T, &Networked<T>)>)
-where
+fn clear_net_object_updates(mut updates: ResMut<NetObjectUpdates>) {
+    updates.0.clear();
+}
+
+/// Applies the value inside a [`Networked`] component to the non-networked equivalent component,
+/// if the network object was updated this frame.
+fn client_apply_networked<T>(
+    updates: Res<NetObjectUpdates>,
+    query: Query<(&NetId, &mut T, &Networked<T>)>,
+) where
     T: Component<Mutability = Mutable> + Clone,
 {
-    for (mut real, networked) in query {
-        *real = networked.0.clone();
+    for (net_id, mut real, networked) in query {
+        if updates.0.contains(net_id) {
+            *real = networked.0.clone();
+        }
     }
 }
 

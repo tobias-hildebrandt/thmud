@@ -159,7 +159,7 @@ pub(crate) fn chunk_spawning(
 fn randomly_add_vel_to_thingies(query: Query<&mut Velocity, With<ThingyMarker>>) {
     const RAND_VEL: f32 = 200.0;
     for mut vel in query {
-        if rand::random_bool(0.95) {
+        if rand::random_bool(0.7) {
             continue;
         }
         vel.linvel.x += rand::random_range(-RAND_VEL..RAND_VEL);
