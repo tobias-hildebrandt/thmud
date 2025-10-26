@@ -49,16 +49,15 @@
 # Roadmap
 - [x] set up git, cargo, github actions
 - [x] render shapes, singleplayer WASD movement
-- [x] walls, collisions
+- [x] collisions
+- [x] (BIG) split into server/client
 - [ ] add simple weapon and animation
 - [ ] enemy, hit-/hurt-boxes
-- [ ] (BIG) split into basic server/client
 - [ ] simple enemy movement AI
 - [ ] saving, loading, syncing state
 - [ ] health, resources
 - [ ] items + inventory
 - [ ] ranged weapons, projectiles
-- [ ] optimize netcode, extrapolation, interpolation, etc.
 - [ ] levels, transitions
 - [ ] shops? UIs
 - [ ] menus, settings

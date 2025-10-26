@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, HashSet},
     net::SocketAddr,
 };
 
@@ -13,11 +13,12 @@ use bevy::{
         schedule::IntoScheduleConfigs,
         system::{Commands, Query, Res, ResMut},
     },
+    transform::components::Transform,
 };
 use tracing::{debug, error, info};
 
 use super::{
-    ecs::NetId,
+    ecs::{NetId, NetObjQuery, Networked},
     messages::{
         client_messages::ClientMessage,
         common::{MessageBuffer, NetHeader},
@@ -28,11 +29,15 @@ use super::{
     tick::GameTick,
 };
 use crate::{
-    networking::{messages::client_messages::ClientMessageBody, tick::increment_tick},
+    networking::{
+        ecs::{NetObj, NetObjQueryItem},
+        messages::client_messages::ClientMessageBody,
+        priority::{Priority, net_obj_priority},
+        tick::increment_tick,
+    },
     simulation::{
         input::PlayerInput,
-        player::{Player, PlayerMarker, PlayerNet, PlayerNetQuery},
-        thingy::{ThingyMarker, ThingyNet, ThingyNetQuery},
+        player::{Player, PlayerId, PlayerMarker, PlayerNet},
     },
 };
 
@@ -59,7 +64,7 @@ impl Plugin for GameServerPlugin {
                 .after(increment_tick),
         );
 
-        app.add_systems(FixedPostUpdate, (server_send,));
+        app.add_systems(FixedPostUpdate, server_send);
 
         app.insert_resource(ServerBuffer::new());
     }
@@ -170,10 +175,10 @@ fn server_handle_messages(
 fn server_send(
     mut clients: ResMut<Clients>,
     mut socket: ResMut<NetServerSocket>,
-    thingies: Query<ThingyNetQuery, With<ThingyMarker>>,
-    players: Query<PlayerNetQuery, With<PlayerMarker>>,
+    net_objs: Query<NetObjQuery>,
     tick: Res<GameTick>,
     mut net_tick: EventReader<NetTick>,
+    player_coords: Query<(&Transform, &Networked<PlayerId>), With<PlayerMarker>>,
 ) {
     if net_tick.read().count() == 0 {
         return;
@@ -183,72 +188,53 @@ fn server_send(
     for (peer, client_info) in clients.0.iter_mut() {
         let mut message = ServerMessage::new(NetHeader {}, *tick);
 
-        let (player_id, player_transform) =
-            if let Ok(peers_player) = players.get(client_info.player_entity) {
-                let player_net = PlayerNet::from(peers_player);
-                let player_id = player_net.player_id.0;
-                let player_transform = player_net.physics.transform.0;
-                let net_id = player_net.net_id;
+        // get peer player info
+        let Ok((player_transform, &Networked(player_id))) =
+            player_coords.get(client_info.player_entity)
+        else {
+            error!("peer {peer:?} has no player");
+            continue;
+        };
 
-                if let Err(e) =
-                    message.try_push(ServerBodyElement::YourPlayerId(player_net.player_id.0))
-                {
-                    error!("can't include peer {peer:?} player ID in server message: {e:?}");
-                    continue;
-                }
-                if let Err(e) = message.try_push(ServerBodyElement::NetObj(player_net.into())) {
-                    error!("can't include peer {peer:?} player element in server message: {e:?}");
-                    continue;
-                }
-
-                client_info.net_obj_states.set_sent_tick(net_id, *tick);
-
-                (player_id, player_transform)
-            } else {
-                error!("peer {peer:?} player entity doesn't exist?");
-                continue;
-            };
-
-        // TODO: sort by priority
-        for player_query_item in players.iter() {
-            let player_net = PlayerNet::from(player_query_item);
-            let net_id = player_net.net_id;
-
-            // skip peers player based on ID, since we already put it first
-            if player_id == player_net.player_id.0 {
-                continue;
-            }
-
-            let elem = ServerBodyElement::NetObj(player_net.into());
-            if message.try_push(elem).is_err() {
-                break;
-            }
-            client_info.net_obj_states.set_sent_tick(net_id, *tick);
+        // push player ID
+        if let Err(e) = message.try_push(ServerBodyElement::YourPlayerId(player_id)) {
+            error!("can't include peer {peer:?} player ID in server message: {e:?}");
+            continue;
         }
 
-        // TODO: sort by priority
+        // local binds for closure
+        let player_coords = player_transform.translation;
+        let client_state = &mut client_info.net_obj_states;
 
-        for thingy_query_item in thingies.iter().sort_by::<ThingyNetQuery>(|a, b| {
-            // TODO: move into another function, add stale-ness, etc.
-            let distance_a = a
-                .transform()
-                .translation
-                .distance(player_transform.translation);
-            let distance_b = b
-                .transform()
-                .translation
-                .distance(player_transform.translation);
+        // sort by priority
+        // TODO: cache? O(n log n) for each player
+        for net_obj in
+            net_objs
+                .iter()
+                .sort_by::<NetObjQuery>(|a: &NetObjQueryItem, b: &NetObjQueryItem| {
+                    // TODO: no clone, take the &NetObjQueryItem directly in the priority function
+                    let net_obj_a = NetObj::from(a.clone());
+                    let net_obj_b = NetObj::from(b.clone());
 
-            f32::total_cmp(&distance_a, &distance_b)
-        }) {
-            let thingy_net = ThingyNet::from(thingy_query_item);
-            let net_id = thingy_net.net_id;
+                    let priority_a =
+                        net_obj_priority(player_id, player_coords, &net_obj_a, client_state);
+                    let priority_b =
+                        net_obj_priority(player_id, player_coords, &net_obj_b, client_state);
 
-            let elem = ServerBodyElement::NetObj(thingy_net.into());
+                    // higher is better
+                    Priority::partial_cmp(&priority_b, &priority_a).unwrap()
+                })
+        {
+            let net_obj = NetObj::from(net_obj);
+            let net_id = net_obj.net_id();
+            let priority = net_obj_priority(player_id, player_coords, &net_obj, client_state);
+            debug!("priority {priority:?}: {net_obj:?}");
+
+            let elem = ServerBodyElement::NetObj(net_obj);
             if message.try_push(elem).is_err() {
                 break;
-            }
-            client_info.net_obj_states.set_sent_tick(net_id, *tick);
+            };
+            client_state.set_sent_tick(net_id, *tick);
         }
 
         socket.send_to(&message, *peer).unwrap();
@@ -264,35 +250,42 @@ fn server_send(
 
 /// Server's knowledge of a client's net objects' states.
 #[derive(Debug, Default)]
-struct ClientNetObjStateMap(HashMap<NetId, ClientNetObjState>);
+pub(super) struct ClientNetObjStateMap(pub(super) HashMap<NetId, ClientNetObjState>);
 
 #[derive(Debug)]
-struct ClientNetObjState {
+pub(super) struct ClientNetObjState {
     last_sent: GameTick,
     last_ack: Option<GameTick>,
 }
 
+impl ClientNetObjState {
+    pub(super) fn ticks_since_ack(&self) -> Option<u64> {
+        self.last_ack.map(|l| self.last_sent - l)
+    }
+}
+
 impl ClientNetObjStateMap {
     fn set_sent_tick(&mut self, net_id: NetId, tick: GameTick) {
-        match self.0.entry(net_id) {
-            Entry::Occupied(mut occupied_entry) => {
-                occupied_entry.get_mut().last_sent = tick;
-            }
-            Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(ClientNetObjState {
+        if let Some(state) = self.0.get_mut(&net_id) {
+            state.last_sent = tick;
+        } else {
+            self.0.insert(
+                net_id,
+                ClientNetObjState {
                     last_sent: tick,
                     last_ack: None,
-                });
-            }
+                },
+            );
         }
     }
 
-    fn update_recv_ack_tick(&mut self, net_id: NetId, tick: GameTick) {
+    fn update_recv_ack_tick(&mut self, net_id: NetId, ack_tick: GameTick) {
         // ignore acks to net ids that we never sent
         if let Some(state) = self.0.get_mut(&net_id) {
-            // only advance forward
-            if state.last_ack.is_none_or(|last| tick > last) {
-                state.last_ack = Some(tick);
+            // only advance forward, don't allow acking past the last time we sent it
+            if state.last_ack.is_none_or(|last| ack_tick > last) && ack_tick <= state.last_sent {
+                debug!("updating last recv ack for {net_id:?}");
+                state.last_ack = Some(ack_tick);
             }
         }
     }

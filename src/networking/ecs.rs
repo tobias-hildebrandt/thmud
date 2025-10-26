@@ -1,12 +1,20 @@
 use bevy::{
-    ecs::{bundle::Bundle, component::Component, query::QueryData},
+    ecs::{
+        bundle::Bundle,
+        component::Component,
+        query::{AnyOf, QueryData},
+    },
+    math::{Vec2, Vec3},
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use crate::simulation::{player::PlayerNet, thingy::ThingyNet};
+use crate::simulation::{
+    player::{PlayerNet, PlayerNetQuery},
+    thingy::{ThingyNet, ThingyNetQuery},
+};
 
 use super::tick::GameTick;
 
@@ -57,11 +65,49 @@ impl NetId {
     }
 }
 
+// TODO: macro-ize NetObj-related code
+
 /// Wrapper enum for all possible net objects.
 #[derive(Debug, Deserialize, Serialize, From)]
 pub(crate) enum NetObj {
     Player(#[from] PlayerNet),
     Thingy(#[from] ThingyNet),
+}
+
+impl NetObj {
+    // TODO: split into own field?
+    pub(crate) fn net_id(&self) -> NetId {
+        match self {
+            NetObj::Player(player_net) => player_net.net_id,
+            NetObj::Thingy(thingy_net) => thingy_net.net_id,
+        }
+    }
+
+    pub(crate) fn coords(&self) -> Option<Vec3> {
+        match self {
+            NetObj::Player(player_net) => Some(player_net.physics.transform.0.translation),
+            NetObj::Thingy(thingy_net) => Some(thingy_net.physics.transform.0.translation),
+        }
+    }
+}
+
+#[derive(QueryData)]
+#[query_data(derive(Clone))]
+pub(crate) struct NetObjQuery {
+    query: AnyOf<(PlayerNetQuery, ThingyNetQuery)>,
+}
+
+impl<'a> From<NetObjQueryItem<'a>> for NetObj {
+    fn from(item: NetObjQueryItem<'a>) -> Self {
+        if let Some(player) = item.query.0 {
+            NetObj::Player(PlayerNet::from(player))
+        } else if let Some(thingy) = item.query.1 {
+            NetObj::Thingy(ThingyNet::from(thingy))
+        } else {
+            // bevy's AnyOf guarantees that this will not occur
+            unreachable!()
+        }
+    }
 }
 
 #[derive(Debug, Default, Bundle, Deserialize, Serialize)]
@@ -71,7 +117,7 @@ pub(crate) struct NetPhysicsBundle {
 }
 
 #[derive(Debug, QueryData)]
-#[query_data(derive(Debug))]
+#[query_data(derive(Debug, Clone))]
 pub(crate) struct NetPhysicsBundleQuery {
     pub(crate) transform: &'static Transform,
     pub(crate) velocity: &'static Velocity,

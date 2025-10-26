@@ -89,8 +89,9 @@ impl PlayerNet {
 }
 
 #[derive(Debug, QueryData)]
-#[query_data(derive(Debug))]
+#[query_data(derive(Debug, Clone))]
 pub(crate) struct PlayerNetQuery {
+    pub(crate) marker: &'static PlayerMarker,
     pub(crate) net_id: &'static NetId,
     pub(crate) physics: NetPhysicsBundleQuery,
     pub(crate) player_id: &'static Networked<PlayerId>,

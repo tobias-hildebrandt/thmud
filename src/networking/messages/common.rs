@@ -2,7 +2,8 @@ use bevy::ecs::resource::Resource;
 use serde::{Deserialize, Serialize};
 
 // TODO: dynamically change this based on network behavior?
-pub(crate) const MAX_PACKET_SIZE: usize = 508;
+// UDP header is 8 bytes
+pub(crate) const MAX_PACKET_SIZE: usize = 1500 - 8;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub(crate) struct NetHeader {

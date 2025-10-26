@@ -254,7 +254,6 @@ fn client_send_data(
     }
 
     let Ok(inputs) = query.single() else {
-        error!("local player has no inputs");
         return;
     };
 

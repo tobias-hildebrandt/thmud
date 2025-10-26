@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use bevy::{
     app::{FixedPreUpdate, Plugin},
     ecs::{resource::Resource, system::ResMut},
@@ -46,6 +48,14 @@ must ACK net object updates
     Hash,
 )]
 pub(crate) struct GameTick(u64);
+
+impl Sub for GameTick {
+    type Output = u64;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
 
 pub(crate) fn increment_tick(mut tick: ResMut<GameTick>) {
     tick.0 = tick.0.wrapping_add(1);

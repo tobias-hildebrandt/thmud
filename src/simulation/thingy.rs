@@ -36,16 +36,11 @@ pub(crate) struct ThingyNet {
 }
 
 #[derive(Debug, QueryData)]
-#[query_data(derive(Debug))]
+#[query_data(derive(Debug, Clone))]
 pub(crate) struct ThingyNetQuery {
+    pub(crate) marker: &'static ThingyMarker,
     pub(crate) net_id: &'static NetId,
     pub(crate) physics: NetPhysicsBundleQuery,
-}
-
-impl<'a> ThingyNetQueryItem<'a> {
-    pub(crate) fn transform(&self) -> Transform {
-        *self.physics.transform
-    }
 }
 
 impl<'a> From<ThingyNetQueryItem<'a>> for ThingyNet {
