@@ -4,7 +4,7 @@ use bevy::{
         component::Component,
         query::{AnyOf, QueryData},
     },
-    math::{Vec2, Vec3},
+    math::Vec3,
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;

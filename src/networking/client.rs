@@ -14,7 +14,7 @@ use bevy::{
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{ExternalForce, Velocity};
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use crate::{
     networking::ecs::NetObj,

@@ -1,8 +1,5 @@
 use crate::{
-    display::{
-        assets::GameAssetPlugin, camera::GameCameraPlugin, debug::GameDebugUiPlugin,
-        grid::GameDrawGridPlugin,
-    },
+    display::{camera::GameCameraPlugin, debug::GameDebugUiPlugin, grid::GameDrawGridPlugin},
     networking::{
         client::GameClientPlugin, netrate::GameNetRatePlugin, server::GameServerPlugin,
         tick::GameTickPlugin,
@@ -62,7 +59,6 @@ pub fn app(run_type: RunType) -> App {
             app.insert_resource(bevy::time::Time::<bevy::time::Fixed>::from_hz(60.0));
 
             // game plugins
-            app.add_plugins(GameAssetPlugin);
             app.add_plugins(GameCameraPlugin);
             app.add_plugins(GameLocalInputPlugin);
             app.add_plugins(GameInputPlugin);
