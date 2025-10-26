@@ -36,7 +36,13 @@ pub(crate) struct LocalPlayerMarker;
 
 // TODO: unnecessary? net id should work fine in basically every case
 #[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PlayerId(pub(crate) u128);
+pub(crate) struct PlayerId(u128);
+
+impl PlayerId {
+    pub(crate) fn new_random() -> Self {
+        Self(rand::random())
+    }
+}
 
 // TODO: move graphics out
 #[derive(Debug, Bundle)]
@@ -73,9 +79,9 @@ pub(crate) struct PlayerNet {
 impl PlayerNet {
     pub(crate) fn new_random() -> Self {
         Self {
-            net_id: NetId(rand::random()),
+            net_id: NetId::new_random(),
             physics: Default::default(),
-            player_id: PlayerId(rand::random()).into(),
+            player_id: PlayerId::new_random().into(),
             total_external_force: Default::default(),
             input: Default::default(),
         }

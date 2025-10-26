@@ -1,11 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    networking::tick::GameTick,
-    simulation::{
-        player::{PlayerId, PlayerNet},
-        thingy::ThingyNet,
-    },
+    networking::{ecs::NetObj, tick::GameTick},
+    simulation::player::PlayerId,
 };
 
 use super::common::{MAX_PACKET_SIZE, MessageWouldExceedMax, NetHeader, serialized_size};
@@ -51,6 +48,5 @@ impl ServerMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ServerBodyElement {
     YourPlayerId(PlayerId),
-    Thingy(ThingyNet),
-    Player(PlayerNet),
+    NetObj(NetObj),
 }

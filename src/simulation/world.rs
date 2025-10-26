@@ -67,8 +67,7 @@ impl Chunk {
         let mut entity_commands = commands.spawn_empty();
 
         let net = ThingyNet {
-            // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
-            net_id: NetId(rng.random()),
+            net_id: NetId::new_random(),
             physics: NetPhysicsBundle {
                 transform: Networked(Transform {
                     translation: Vec3 {

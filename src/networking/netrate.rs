@@ -6,7 +6,7 @@ use bevy::{
         system::ResMut,
     },
 };
-use tracing::info;
+use tracing::debug;
 
 pub(crate) struct GameNetRatePlugin {
     /// Rate per fixed-step.
@@ -62,7 +62,7 @@ fn tick_net(mut timer: ResMut<NetRateCounter>, mut writer: EventWriter<NetTick>)
     timer.counter += 1;
     if timer.counter == timer.max {
         timer.counter = 0;
-        info!("net tick");
+        debug!("net tick");
         writer.write(NetTick);
     }
 }

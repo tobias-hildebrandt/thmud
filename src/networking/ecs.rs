@@ -3,7 +3,10 @@ use bevy::{
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::Velocity;
+use derive_more::From;
 use serde::{Deserialize, Serialize};
+
+use crate::simulation::{player::PlayerNet, thingy::ThingyNet};
 
 use super::tick::GameTick;
 
@@ -35,15 +38,9 @@ client system order:
 
 */
 
-#[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, Default)]
+#[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, Default, From)]
 #[serde(transparent)]
-pub(crate) struct Networked<T>(pub(crate) T);
-
-impl<T> From<T> for Networked<T> {
-    fn from(component: T) -> Self {
-        Self(component)
-    }
-}
+pub(crate) struct Networked<T>(#[from] pub(crate) T);
 
 #[derive(Debug, Component, Clone, Copy)]
 pub(crate) struct LastNetUpdate(pub(crate) GameTick);
@@ -51,7 +48,21 @@ pub(crate) struct LastNetUpdate(pub(crate) GameTick);
 #[derive(
     Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
-pub(crate) struct NetId(pub(crate) u128);
+pub(crate) struct NetId(u128);
+
+impl NetId {
+    // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
+    pub(crate) fn new_random() -> Self {
+        Self(rand::random())
+    }
+}
+
+/// Wrapper enum for all possible net objects.
+#[derive(Debug, Deserialize, Serialize, From)]
+pub(crate) enum NetObj {
+    Player(#[from] PlayerNet),
+    Thingy(#[from] ThingyNet),
+}
 
 #[derive(Debug, Default, Bundle, Deserialize, Serialize)]
 pub(crate) struct NetPhysicsBundle {

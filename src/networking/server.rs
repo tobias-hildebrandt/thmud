@@ -196,7 +196,7 @@ fn server_send(
                     error!("can't include peer {peer:?} player ID in server message: {e:?}");
                     continue;
                 }
-                if let Err(e) = message.try_push(ServerBodyElement::Player(player_net)) {
+                if let Err(e) = message.try_push(ServerBodyElement::NetObj(player_net.into())) {
                     error!("can't include peer {peer:?} player element in server message: {e:?}");
                     continue;
                 }
@@ -219,7 +219,7 @@ fn server_send(
                 continue;
             }
 
-            let elem = ServerBodyElement::Player(player_net);
+            let elem = ServerBodyElement::NetObj(player_net.into());
             if message.try_push(elem).is_err() {
                 break;
             }
@@ -244,7 +244,7 @@ fn server_send(
             let thingy_net = ThingyNet::from(thingy_query_item);
             let net_id = thingy_net.net_id;
 
-            let elem = ServerBodyElement::Thingy(thingy_net);
+            let elem = ServerBodyElement::NetObj(thingy_net.into());
             if message.try_push(elem).is_err() {
                 break;
             }

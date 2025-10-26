@@ -16,10 +16,13 @@ use bevy::{
 use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 use tracing::{debug, error, warn};
 
-use crate::simulation::{
-    input::{PlayerInput, input_quit, read_local_inputs},
-    player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
-    thingy::{Thingy, ThingyNet},
+use crate::{
+    networking::ecs::NetObj,
+    simulation::{
+        input::{PlayerInput, input_quit, read_local_inputs},
+        player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
+        thingy::{Thingy, ThingyNet},
+    },
 };
 
 use super::{
@@ -140,12 +143,14 @@ fn client_handle_messages(
                 ServerBodyElement::YourPlayerId(player_id) => {
                     state.my_player_id = Some(player_id);
                 }
-                ServerBodyElement::Thingy(thingy_net) => {
-                    state.thingy.0.insert(thingy_net.net_id, (thingy_net, tick));
-                }
-                ServerBodyElement::Player(player_net) => {
-                    state.player.0.insert(player_net.net_id, (player_net, tick));
-                }
+                ServerBodyElement::NetObj(net_obj) => match net_obj {
+                    NetObj::Player(player_net) => {
+                        state.player.0.insert(player_net.net_id, (player_net, tick));
+                    }
+                    NetObj::Thingy(thingy_net) => {
+                        state.thingy.0.insert(thingy_net.net_id, (thingy_net, tick));
+                    }
+                },
             }
         }
     }
