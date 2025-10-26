@@ -1,3 +1,4 @@
-pub mod assets;
-pub mod camera;
-pub mod debug;
+pub(crate) mod assets;
+pub(crate) mod camera;
+pub(crate) mod debug;
+pub(crate) mod grid;

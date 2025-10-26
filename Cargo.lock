@@ -4023,6 +4023,7 @@ dependencies = [
  "bevy",
  "bevy_rapier2d",
  "fixed",
+ "hex",
  "iyes_perf_ui",
  "paste",
  "postcard",
@@ -4030,6 +4031,7 @@ dependencies = [
  "serde",
  "serde_with",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]

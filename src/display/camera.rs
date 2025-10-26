@@ -33,7 +33,7 @@ fn camera_follow_local_player(
     camera_transform.translation = player_transform.translation;
 }
 
-pub struct GameCameraPlugin;
+pub(crate) struct GameCameraPlugin;
 
 impl Plugin for GameCameraPlugin {
     fn build(&self, app: &mut bevy::app::App) {

@@ -14,23 +14,27 @@ use bevy::{
     transform::components::Transform,
 };
 use bevy_rapier2d::prelude::{ExternalForce, Velocity};
+use tracing::{debug, error, warn};
 
-use crate::{
-    networking::messages::{ClientBodyElement, NetHeader, ServerBodyElement},
-    simulation::{
-        input::{PlayerInput, input_quit, read_local_inputs},
-        player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
-        thingy::{Thingy, ThingyNet},
-    },
+use crate::simulation::{
+    input::{PlayerInput, input_quit, read_local_inputs},
+    player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
+    thingy::{Thingy, ThingyNet},
 };
 
 use super::{
-    ecs::{NetId, Networked},
-    messages::{ClientMessage, MessageBuffer, ServerMessage},
+    ecs::{LastNetUpdate, NetId, Networked},
+    messages::{
+        client_messages::{ClientDataMessageBuilder, ClientMessage, NetObjAck},
+        common::{MessageBuffer, NetHeader},
+        server_messages::{ServerBodyElement, ServerMessage},
+    },
+    netrate::NetTick,
     sockets::{NetClientSocket, debug::DebugNetSocket, real::RealNetClientSocket},
+    tick::GameTick,
 };
 
-pub struct GameClientPlugin;
+pub(crate) struct GameClientPlugin;
 
 impl Plugin for GameClientPlugin {
     fn build(&self, app: &mut bevy::app::App) {
@@ -40,9 +44,7 @@ impl Plugin for GameClientPlugin {
             // TODO: load/deser actions from filesystem?
             NetClientSocket::Debug(DebugNetSocket::new())
         };
-        let mut m = ClientMessage::new(NetHeader {});
-        m.try_push_back(ClientBodyElement::Register)
-            .expect("unable to fit register in client message");
+        let m = ClientMessage::register(NetHeader {});
         socket.send(&m).unwrap();
 
         app.insert_resource(socket);
@@ -62,23 +64,26 @@ impl Plugin for GameClientPlugin {
                     client_apply_networked::<ExternalForce>,
                 )
                     .after(client_handle_messages)
-                    .after(clear_net_object_updates),
-                (client_send_inputs.after(read_local_inputs)),
+                    .after(clear_net_object_updates)
+                    .after(
+                        client_send_data, /* DON'T OVERWRITE UNTIL AFTER WE ACK */
+                    ),
+                (client_send_data.after(read_local_inputs)),
                 client_send_disconnect.after(input_quit),
             ),
         );
     }
 }
 
-type ClientBuffer = MessageBuffer<ServerMessage<'static>>;
+type ClientBuffer = MessageBuffer<ServerMessage>;
 
 fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<ClientBuffer>) {
     while let Ok(Some((msg, peer))) = socket.recv() {
-        // println!("client recv msg from peer {}", peer);
+        // debug!("client recv msg from peer {}", peer);
 
         if peer != socket.server_addr() {
             // drop it
-            println!("dropping msg from non-server addr");
+            warn!("dropping msg from non-server addr");
             continue;
         }
         buffer.messages.push(msg);
@@ -87,7 +92,7 @@ fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<
 
 /// Stores IDs of all net objects that were changed this frame.
 #[derive(Debug, Resource, Default)]
-struct NetObjectUpdates(HashSet<NetId>);
+struct NetObjectUpdates(HashMap<NetId, GameTick>);
 
 #[derive(Debug)]
 struct NetsById<T>(HashMap<NetId, T>);
@@ -104,87 +109,101 @@ struct HandleMessageState {
     spawned: HashSet<NetId>,
     my_player_id: Option<PlayerId>,
 
-    thingy: NetsById<ThingyNet>,
-    player: NetsById<PlayerNet>,
+    thingy: NetsById<(ThingyNet, GameTick)>,
+    player: NetsById<(PlayerNet, GameTick)>,
 }
 
 // TODO: look into exclusive system instead of using commands
 fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
-    query: Query<(Entity, &NetId)>,
+    query: Query<(Entity, &NetId, &mut LastNetUpdate)>,
     mut commands: Commands,
     mut updates: ResMut<NetObjectUpdates>,
+    mut net_tick: EventReader<NetTick>,
 ) {
+    if net_tick.read().count() == 0 {
+        return;
+    }
+
     let mut state = HandleMessageState::default();
 
-    // println!("client handling messages");
+    debug!("client handling messages");
     for msg in buffer.messages.drain(..) {
-        // println!("client handling message: {:?}", msg);
         // TODO: process header
 
-        // process and sort bodies
+        let tick = msg.tick;
 
+        // process bodies
         for body in msg.body_elements() {
-            // println!("client handling body: {:?}", body);
+            debug!("client handling body: {:?}", body);
             match body {
-                ServerBodyElement::Dummy(_cow) => {}
                 ServerBodyElement::YourPlayerId(player_id) => {
                     state.my_player_id = Some(player_id);
                 }
                 ServerBodyElement::Thingy(thingy_net) => {
-                    state.thingy.0.insert(thingy_net.net_id, thingy_net);
+                    state.thingy.0.insert(thingy_net.net_id, (thingy_net, tick));
                 }
                 ServerBodyElement::Player(player_net) => {
-                    state.player.0.insert(player_net.net_id, player_net);
+                    state.player.0.insert(player_net.net_id, (player_net, tick));
                 }
             }
         }
     }
 
     // update for pre-existing entity
-    for (entity, net_id) in query {
-        let mut updated = false;
-        if let Some(thingy) = state.thingy.0.remove(net_id) {
+    for (entity, net_id, mut last_update) in query {
+        let mut this_update = None;
+        if let Some((thingy, tick)) = state.thingy.0.remove(net_id)
+            && tick > last_update.0
+        {
             commands.entity(entity).insert(thingy);
-            updated = true;
+            last_update.0 = tick;
+            this_update = Some(tick);
         }
 
-        if let Some(player) = state.player.0.remove(net_id) {
+        if let Some((player, tick)) = state.player.0.remove(net_id)
+            && tick > last_update.0
+        {
             let mut commands = commands.entity(entity);
             if state.my_player_id.is_some_and(|i| i == player.player_id.0) {
                 commands.insert(LocalPlayerMarker);
             }
-
             commands.insert(player);
-            updated = true;
+
+            last_update.0 = tick;
+            this_update = Some(tick);
         }
 
         // make sure the later systems actually apply the change
-        // TODO: interpolation
-        if updated {
-            updates.0.insert(*net_id);
+        if let Some(tick) = this_update {
+            updates.0.insert(*net_id, tick);
         }
     }
 
     // spawn new thingies
-    for (net_id, thingy) in state.thingy.0 {
+    for (net_id, (thingy, tick)) in state.thingy.0 {
         // do not spawn twice
         if !state.spawned.contains(&net_id) {
             state.spawned.insert(net_id);
-            commands.spawn(Thingy::bundle(thingy));
+
+            commands.spawn(Thingy::client_bundle(thingy, tick));
         }
     }
 
     // spawn new players
-    for (net_id, player) in state.player.0 {
+    for (net_id, (player, tick)) in state.player.0 {
         // do not spawn twice
         if !state.spawned.contains(&net_id) {
             state.spawned.insert(net_id);
 
-            if state.my_player_id.is_some_and(|i| i == player.player_id.0) {
-                commands.spawn((Player::bundle(player), LocalPlayerMarker));
+            let player_is_me = state.my_player_id.is_some_and(|i| i == player.player_id.0);
+
+            let bundle = Player::client_bundle(player, tick);
+
+            if player_is_me {
+                commands.spawn((bundle, LocalPlayerMarker));
             } else {
-                commands.spawn(Player::bundle(player));
+                commands.spawn(bundle);
             }
         }
     }
@@ -196,36 +215,62 @@ fn clear_net_object_updates(mut updates: ResMut<NetObjectUpdates>) {
 
 /// Applies the value inside a [`Networked`] component to the non-networked equivalent component,
 /// if the network object was updated this frame.
+// TODO: interpolation/extrapolation
 fn client_apply_networked<T>(
     updates: Res<NetObjectUpdates>,
-    query: Query<(&NetId, &mut T, &Networked<T>)>,
+    query: Query<(&NetId, &mut T, &Networked<T>, Option<&LocalPlayerMarker>)>,
 ) where
     T: Component<Mutability = Mutable> + Clone,
 {
-    for (net_id, mut real, networked) in query {
-        if updates.0.contains(net_id) {
+    for (net_id, mut real, networked, local) in query {
+        if updates.0.contains_key(net_id) {
+            if local.is_some() {
+                debug!(
+                    "applying networked local player's {:?}",
+                    std::any::type_name_of_val(&networked.0)
+                        .split("::")
+                        .last()
+                        .unwrap()
+                );
+            }
             *real = networked.0.clone();
         }
     }
 }
 
-// TODO: client send inputs
-fn client_send_inputs(
+fn client_send_data(
     mut socket: ResMut<NetClientSocket>,
     query: Query<&PlayerInput, With<LocalPlayerMarker>>,
+    updates: Res<NetObjectUpdates>,
+    mut net_tick: EventReader<NetTick>,
 ) {
-    let Ok(inputs) = query.single() else {
-        return;
-    };
-
-    let mut message = ClientMessage::new(NetHeader {});
-
-    if let Err(e) = message.try_push_back(ClientBodyElement::Input(*inputs)) {
-        println!("cannot push inputs into client message: {:?}", e);
+    if net_tick.read().count() == 0 {
         return;
     }
 
+    let Ok(inputs) = query.single() else {
+        error!("local player has no inputs");
+        return;
+    };
+
+    let mut message = ClientDataMessageBuilder::new(NetHeader {}, *inputs);
+
+    // TODO: push acks
+    for (net_id, tick) in updates.0.iter() {
+        if message
+            .try_add_ack(NetObjAck {
+                net_id: *net_id,
+                tick: *tick,
+            })
+            .is_err()
+        {
+            break;
+        }
+    }
+
+    let message = message.build();
     socket.send(&message).unwrap();
+    debug!("client sent message: {message:?}");
 }
 
 fn client_send_disconnect(
@@ -233,11 +278,7 @@ fn client_send_disconnect(
     mut event_reader: EventReader<AppExit>,
 ) {
     if event_reader.read().next().is_some() {
-        let mut message = ClientMessage::new(NetHeader {});
-        if let Err(e) = message.try_push_back(ClientBodyElement::Unregister) {
-            println!("cannot push unregister into client message: {:?}", e);
-            return;
-        }
+        let message = ClientMessage::unregister(NetHeader {});
 
         socket.send(&message).unwrap();
     }

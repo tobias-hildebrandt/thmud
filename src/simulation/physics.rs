@@ -23,7 +23,7 @@ fn friction(mut query: Query<&mut Velocity>) {
     }
 }
 
-pub struct GamePhysicsPlugin;
+pub(crate) struct GamePhysicsPlugin;
 
 impl Plugin for GamePhysicsPlugin {
     fn build(&self, app: &mut bevy::app::App) {

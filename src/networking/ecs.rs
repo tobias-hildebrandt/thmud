@@ -5,6 +5,8 @@ use bevy::{
 use bevy_rapier2d::prelude::Velocity;
 use serde::{Deserialize, Serialize};
 
+use super::tick::GameTick;
+
 /*
 TODO:
 whole-state updates of entities
@@ -42,6 +44,9 @@ impl<T> From<T> for Networked<T> {
         Self(component)
     }
 }
+
+#[derive(Debug, Component, Clone, Copy)]
+pub(crate) struct LastNetUpdate(pub(crate) GameTick);
 
 #[derive(
     Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,

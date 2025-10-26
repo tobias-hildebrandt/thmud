@@ -32,7 +32,7 @@ impl From<ExternalForce> for ExternalForceSerde {
 }
 
 // #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub enum ColliderMassPropertiesSerde {
+// pub(crate)enum ColliderMassPropertiesSerde {
 //     Density(f32),
 //     Mass(f32),
 // }

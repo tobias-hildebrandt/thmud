@@ -64,7 +64,9 @@ impl Chunk {
         let chunk_offset_x = rng.random_range(0..CHUNK_SIZE);
         let chunk_offset_y = rng.random_range(0..CHUNK_SIZE);
 
-        let thingy_bundle = Thingy::bundle(ThingyNet {
+        let mut entity_commands = commands.spawn_empty();
+
+        let net = ThingyNet {
             // TODO: track net-ids to avoid collisions?? 128 bit random should be fine tho
             net_id: NetId(rng.random()),
             physics: NetPhysicsBundle {
@@ -78,9 +80,9 @@ impl Chunk {
                 }),
                 velocity: Default::default(),
             },
-        });
+        };
 
-        commands.spawn(thingy_bundle);
+        entity_commands.insert(Thingy::server_bundle(net));
     }
 }
 
@@ -167,7 +169,7 @@ fn randomly_add_vel_to_thingies(query: Query<&mut Velocity, With<ThingyMarker>>)
     }
 }
 
-pub struct GameWorldGenPlugin;
+pub(crate) struct GameWorldGenPlugin;
 
 impl Plugin for GameWorldGenPlugin {
     fn build(&self, app: &mut bevy::app::App) {

@@ -3,8 +3,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use bevy::ecs::resource::Resource;
 use debug::DebugNetSocket;
 use real::{RealNetClientSocket, RealNetServerSocket, SendOrSerializeError};
+use tracing::warn;
 
-use super::messages::{ClientMessage, ServerMessage};
+use super::messages::{client_messages::ClientMessage, server_messages::ServerMessage};
 
 pub(crate) mod debug;
 pub(crate) mod real;
@@ -13,7 +14,7 @@ pub(crate) mod real;
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NetClientSocket {
     Real(RealNetClientSocket),
-    Debug(DebugNetSocket<ServerMessage<'static>>),
+    Debug(DebugNetSocket<ServerMessage>),
 }
 
 const FAKE_DEBUG_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9999);
@@ -21,7 +22,7 @@ const FAKE_DEBUG_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECI
 impl NetClientSocket {
     pub(crate) fn recv(
         &mut self,
-    ) -> Result<Option<(ServerMessage<'static>, SocketAddr)>, SendOrSerializeError> {
+    ) -> Result<Option<(ServerMessage, SocketAddr)>, SendOrSerializeError> {
         match self {
             NetClientSocket::Real(real) => real.socket_and_buffer.recv(),
             NetClientSocket::Debug(debug) => Ok(debug.next_message().map(|m| (m, FAKE_DEBUG_ADDR))),
@@ -35,7 +36,7 @@ impl NetClientSocket {
             }
             NetClientSocket::Debug(_debug) => {
                 // TODO:
-                println!("debug client sending not implemented");
+                warn!("debug client sending not implemented");
                 Ok(())
             }
         }
@@ -55,20 +56,8 @@ pub(crate) struct NetServerSocket(pub(crate) RealNetServerSocket);
 impl NetServerSocket {
     pub(crate) fn recv(
         &mut self,
-    ) -> Result<Option<(ClientMessage<'static>, SocketAddr)>, SendOrSerializeError> {
+    ) -> Result<Option<(ClientMessage, SocketAddr)>, SendOrSerializeError> {
         self.0.socket_and_buffer.recv()
-    }
-
-    pub(crate) fn send_to_all(
-        &mut self,
-        message: &ServerMessage,
-        addresses: impl Iterator<Item = SocketAddr>,
-    ) -> Result<(), SendOrSerializeError> {
-        // TODO: do not stop on single failure
-        for target in addresses {
-            self.0.socket_and_buffer.send_to(message, target)?;
-        }
-        Ok(())
     }
 
     pub(crate) fn send_to(

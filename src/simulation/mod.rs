@@ -1,5 +1,5 @@
-pub mod input;
-pub mod physics;
-pub mod player;
-pub mod thingy;
-pub mod world;
+pub(crate) mod input;
+pub(crate) mod physics;
+pub(crate) mod player;
+pub(crate) mod thingy;
+pub(crate) mod world;

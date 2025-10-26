@@ -6,7 +6,10 @@ use bevy_rapier2d::prelude::{Collider, ColliderMassProperties, RigidBody, Veloci
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery},
+    networking::{
+        ecs::{LastNetUpdate, NetId, NetPhysicsBundle, NetPhysicsBundleQuery},
+        tick::GameTick,
+    },
     simulation::player::Player,
 };
 
@@ -21,8 +24,6 @@ pub(crate) struct Thingy {
     pub(crate) rigid_body: RigidBody,
     pub(crate) collider: Collider,
     pub(crate) mass_properties: ColliderMassProperties,
-
-    pub(crate) net: ThingyNet,
 }
 
 // network-synchronized state of thingy
@@ -31,15 +32,14 @@ pub(crate) struct Thingy {
 #[derive(Debug, Bundle, Serialize, Deserialize)]
 pub(crate) struct ThingyNet {
     pub(crate) net_id: NetId,
-    // TODO: technically unnecessary on server
     pub(crate) physics: NetPhysicsBundle,
 }
 
 #[derive(Debug, QueryData)]
 #[query_data(derive(Debug))]
 pub(crate) struct ThingyNetQuery {
-    net_id: &'static NetId,
-    physics: NetPhysicsBundleQuery,
+    pub(crate) net_id: &'static NetId,
+    pub(crate) physics: NetPhysicsBundleQuery,
 }
 
 impl<'a> ThingyNetQueryItem<'a> {
@@ -61,15 +61,29 @@ impl Thingy {
     const RADIUS: f32 = 25.0;
     const DENSITY: f32 = Player::DENSITY / 2.0;
 
-    pub(crate) fn bundle(net: ThingyNet) -> Self {
-        Self {
+    pub(crate) fn client_bundle(net: ThingyNet, last_updated: GameTick) -> impl Bundle {
+        let thingy = Self {
             marker: ThingyMarker,
             transform: net.physics.transform.0,
             velocity: net.physics.velocity.0,
             rigid_body: RigidBody::Dynamic,
             collider: Collider::cuboid(Self::RADIUS, Self::RADIUS),
             mass_properties: ColliderMassProperties::Density(Self::DENSITY),
-            net,
-        }
+        };
+
+        (thingy, net, LastNetUpdate(last_updated))
+    }
+
+    pub(crate) fn server_bundle(net: ThingyNet) -> impl Bundle {
+        let thingy = Self {
+            marker: ThingyMarker,
+            transform: net.physics.transform.0,
+            velocity: net.physics.velocity.0,
+            rigid_body: RigidBody::Dynamic,
+            collider: Collider::cuboid(Self::RADIUS, Self::RADIUS),
+            mass_properties: ColliderMassProperties::Density(Self::DENSITY),
+        };
+
+        (thingy, net.net_id)
     }
 }

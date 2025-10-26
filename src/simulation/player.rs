@@ -3,9 +3,12 @@ use bevy::{
     ecs::{
         bundle::Bundle,
         component::Component,
+        hierarchy::Children,
         query::{QueryData, With},
+        spawn::SpawnRelated,
         system::Query,
     },
+    render::view::Visibility,
     text::{Text2d, TextColor},
     transform::components::Transform,
 };
@@ -15,14 +18,17 @@ use bevy_rapier2d::prelude::{
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::networking::ecs::{NetId, NetPhysicsBundle, NetPhysicsBundleQuery, Networked};
 use crate::networking::serde_helpers::{ExternalForceSerde, FromIntoNetworked};
+use crate::networking::{
+    ecs::{LastNetUpdate, NetId, NetPhysicsBundle, NetPhysicsBundleQuery, Networked},
+    tick::GameTick,
+};
 
 use super::input::PlayerInput;
 
 /// Marker struct for players.
 #[derive(Debug, Component)]
-pub struct PlayerMarker;
+pub(crate) struct PlayerMarker;
 
 /// Marker struct for local player, only used by client.
 #[derive(Debug, Component)]
@@ -30,11 +36,11 @@ pub(crate) struct LocalPlayerMarker;
 
 // TODO: unnecessary? net id should work fine in basically every case
 #[derive(Debug, Deserialize, Serialize, Component, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PlayerId(pub(crate) u128);
+pub(crate) struct PlayerId(pub(crate) u128);
 
 // TODO: move graphics out
 #[derive(Debug, Bundle)]
-pub struct Player {
+pub(crate) struct Player {
     // game
     pub(crate) player: PlayerMarker,
 
@@ -51,9 +57,6 @@ pub struct Player {
     // input
     pub(crate) input: PlayerInput,
     pub(crate) input_force: MovementInputForce, // sub-force of total_external_force
-
-    // net
-    pub(crate) net: PlayerNet,
 }
 
 #[serde_as]
@@ -82,21 +85,11 @@ impl PlayerNet {
 #[derive(Debug, QueryData)]
 #[query_data(derive(Debug))]
 pub(crate) struct PlayerNetQuery {
-    net_id: &'static NetId,
-    physics: NetPhysicsBundleQuery,
-    player_id: &'static Networked<PlayerId>,
-    total_external_force: &'static ExternalForce,
-    input: &'static PlayerInput,
-}
-
-impl<'a> PlayerNetQueryItem<'a> {
-    pub(crate) fn player_id(&self) -> PlayerId {
-        self.player_id.0
-    }
-
-    pub(crate) fn transform(&self) -> Transform {
-        *self.physics.transform
-    }
+    pub(crate) net_id: &'static NetId,
+    pub(crate) physics: NetPhysicsBundleQuery,
+    pub(crate) player_id: &'static Networked<PlayerId>,
+    pub(crate) total_external_force: &'static ExternalForce,
+    pub(crate) input: &'static PlayerInput,
 }
 
 impl<'a> From<PlayerNetQueryItem<'a>> for PlayerNet {
@@ -115,7 +108,7 @@ impl<'a> From<PlayerNetQueryItem<'a>> for PlayerNet {
 pub(crate) struct MovementInputForce(pub(crate) ExternalForce);
 
 #[derive(Debug, Bundle)]
-pub struct PlayerText {
+pub(crate) struct PlayerText {
     pub(crate) text: Text2d,
     pub(crate) color: TextColor,
     pub(crate) transform: Transform,
@@ -124,7 +117,7 @@ pub struct PlayerText {
 impl Player {
     pub(crate) const DENSITY: f32 = 20.;
 
-    pub(crate) fn bundle(net: PlayerNet) -> impl Bundle {
+    pub(crate) fn client_bundle(net: PlayerNet, last_updated: GameTick) -> impl Bundle {
         // player entity
         let player = Player {
             player: PlayerMarker,
@@ -139,18 +132,46 @@ impl Player {
 
             input_force: Default::default(),
             input: net.input.0,
-
-            net,
         };
 
-        // // child entity for text
-        // let text = PlayerText {
-        //     text: Text2d("Player".to_string()),
-        //     color: TextColor::BLACK,
-        //     transform: Transform::from_xyz(0.0, 20.0, 0.0),
-        // };
+        // child entity for text
+        let text = PlayerText {
+            text: Text2d(hex::encode_upper(net.player_id.0.0.to_le_bytes())),
+            color: TextColor::BLACK,
+            transform: Transform::from_xyz(0.0, 20.0, 0.0),
+        };
 
-        (player /* Children::spawn_one(text) */,)
+        // TODO: re-add graphics
+
+        // client-specific components to add to player entity
+        let client_specific = (net, LastNetUpdate(last_updated));
+
+        (
+            player,
+            client_specific,
+            Visibility::Visible, // otherwise PlayerText complains
+            Children::spawn_one(text),
+        )
+    }
+
+    pub(crate) fn server_bundle(net: PlayerNet) -> impl Bundle {
+        // player entity
+        let player = Player {
+            player: PlayerMarker,
+            rigid_body: RigidBody::Dynamic,
+            collider: Collider::ball(50.0),
+            velocity: net.physics.velocity.0,
+            transform: net.physics.transform.0,
+            mass_properties: ColliderMassProperties::Density(Self::DENSITY),
+            locked_axes: LockedAxes::ROTATION_LOCKED,
+            total_external_force: Default::default(),
+            collision_detection: Default::default(),
+
+            input_force: Default::default(),
+            input: net.input.0,
+        };
+
+        (player, net.net_id, net.player_id)
     }
 }
 
@@ -161,7 +182,7 @@ fn sum_subforces(query: Query<(&mut ExternalForce, &MovementInputForce), With<Pl
     }
 }
 
-pub struct GamePlayerPlugin;
+pub(crate) struct GamePlayerPlugin;
 
 impl Plugin for GamePlayerPlugin {
     fn build(&self, app: &mut bevy::app::App) {

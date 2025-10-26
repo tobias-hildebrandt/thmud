@@ -63,7 +63,7 @@ pub(crate) fn initialize_assets(
     commands.insert_resource(assets);
 }
 
-pub struct GameAssetPlugin;
+pub(crate) struct GameAssetPlugin;
 
 impl Plugin for GameAssetPlugin {
     fn build(&self, app: &mut bevy::app::App) {

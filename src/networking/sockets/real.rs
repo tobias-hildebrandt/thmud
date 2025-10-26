@@ -5,6 +5,7 @@ use std::{
 
 use bevy::ecs::resource::Resource;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 // TODO: restrict send type and return types?
 
@@ -22,7 +23,9 @@ impl NetSocketAndBuffer {
             .set_nonblocking(true)
             .expect("unable to set nonblocking socket, platform unsupported");
 
-        println!("socket bound to {:?}", socket.local_addr());
+        let addr = socket.local_addr().expect("socket has no address");
+
+        info!("socket bound to {addr:?}");
 
         Self {
             socket,

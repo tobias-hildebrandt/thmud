@@ -12,6 +12,7 @@ use bevy::{
 };
 
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::simulation::player::{MovementInputForce, PlayerMarker};
 
@@ -31,6 +32,7 @@ pub(crate) fn read_local_inputs(
     mut query: Query<&mut PlayerInput, With<LocalPlayerMarker>>,
 ) {
     let Ok(mut local_player_input) = query.single_mut() else {
+        error!("no local player with inputs");
         return;
     };
 
@@ -82,7 +84,7 @@ pub(crate) fn input_quit(
     }
 }
 
-pub struct GameInputPlugin;
+pub(crate) struct GameInputPlugin;
 
 impl Plugin for GameInputPlugin {
     fn build(&self, app: &mut bevy::app::App) {
@@ -90,7 +92,7 @@ impl Plugin for GameInputPlugin {
     }
 }
 
-pub struct GameLocalInputPlugin;
+pub(crate) struct GameLocalInputPlugin;
 
 impl Plugin for GameLocalInputPlugin {
     fn build(&self, app: &mut bevy::app::App) {
