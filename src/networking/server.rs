@@ -41,6 +41,7 @@ use crate::{
     },
 };
 
+/// Plugin for the network server.
 pub(crate) struct GameServerPlugin;
 
 impl Plugin for GameServerPlugin {
@@ -73,9 +74,11 @@ impl Plugin for GameServerPlugin {
     }
 }
 
+/// Map of connected clients.
 #[derive(Debug, Resource, Default)]
 pub(crate) struct Clients(HashMap<SocketAddr, ClientInfo>);
 
+/// Info about a connected client.
 #[derive(Debug)]
 struct ClientInfo {
     player_entity: Entity,
@@ -90,9 +93,10 @@ impl ClientInfo {
         }
     }
 }
-
+/// Buffer for received client messages.
 type ServerBuffer = MessageBuffer<(ClientMessage, SocketAddr)>;
 
+/// Read messages off of the socket and push them into the buffer.
 fn server_recv_messages(mut net_server: ResMut<NetServer>, mut buffer: ResMut<ServerBuffer>) {
     while let Ok(Some((msg, peer))) = net_server.socket.recv() {
         debug!("server recv msg from peer {peer:?}");
@@ -100,6 +104,9 @@ fn server_recv_messages(mut net_server: ResMut<NetServer>, mut buffer: ResMut<Se
     }
 }
 
+/// Process client messages. Registers and unregisters clients, processes inputs and acks.
+///
+/// Only runs on [`NetTick`]s.
 // TODO: improve parallelism, each message type into separate resources queues,
 //       then run a system for each type
 fn server_handle_messages(
@@ -175,6 +182,9 @@ fn server_handle_messages(
     }
 }
 
+/// Send server data to each client.
+///
+/// Only runs on [`NetTick`]s.
 fn server_send(
     mut clients: ResMut<Clients>,
     mut net_server: ResMut<NetServer>,
@@ -187,7 +197,6 @@ fn server_send(
         return;
     }
 
-    // TODO: individual priorities
     for (peer, client_info) in clients.0.iter_mut() {
         let mut message = ServerMessage::new(NetHeader {}, *tick);
 
@@ -237,7 +246,7 @@ fn server_send(
             if message.try_push(elem).is_err() {
                 break;
             };
-            client_state.set_sent_tick(net_id, *tick);
+            client_state.set_last_sent_tick(net_id, *tick);
         }
 
         net_server.socket.send_to(&message, *peer).unwrap();
@@ -255,20 +264,25 @@ fn server_send(
 #[derive(Debug, Default)]
 pub(super) struct ClientNetObjStateMap(pub(super) HashMap<NetId, ClientNetObjState>);
 
+/// Server's knowledge of a single net object's state.
 #[derive(Debug)]
 pub(super) struct ClientNetObjState {
+    /// The last time the server sent an update of the net object to the client.
     last_sent: GameTick,
+    /// The most up-to-date ack that the server received from the client for this net object.
     last_ack: Option<GameTick>,
 }
 
 impl ClientNetObjState {
+    /// Return the delay in ticks between the last sent ack and the most up-to-date received ack.
     pub(super) fn ticks_since_ack(&self) -> Option<u64> {
         self.last_ack.map(|l| self.last_sent - l)
     }
 }
 
 impl ClientNetObjStateMap {
-    fn set_sent_tick(&mut self, net_id: NetId, tick: GameTick) {
+    /// Set the last sent tick.
+    fn set_last_sent_tick(&mut self, net_id: NetId, tick: GameTick) {
         if let Some(state) = self.0.get_mut(&net_id) {
             state.last_sent = tick;
         } else {
@@ -282,10 +296,11 @@ impl ClientNetObjStateMap {
         }
     }
 
+    /// Set the last received ack tick (if it is more up-to-date).
     fn update_recv_ack_tick(&mut self, net_id: NetId, ack_tick: GameTick) {
         // ignore acks to net ids that we never sent
         if let Some(state) = self.0.get_mut(&net_id) {
-            // only advance forward, don't allow acking past the last time we sent it
+            // only advance forward, ignore the client if it acks an update before we send it
             if state.last_ack.is_none_or(|last| ack_tick > last) && ack_tick <= state.last_sent {
                 debug!("updating last recv ack for {net_id:?}");
                 state.last_ack = Some(ack_tick);

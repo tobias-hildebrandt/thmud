@@ -75,10 +75,12 @@ impl Plugin for GameClientPlugin {
     }
 }
 
-/// Buffer for client messages.
+/// Buffer for received server messages.
 type ClientBuffer = MessageBuffer<ServerMessage>;
 
 /// Read messages off of the socket and push them into the buffer.
+///
+/// Drops any packet not from the server.
 fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<ClientBuffer>) {
     while let Ok(Some((msg, peer))) = net_client.socket.recv() {
         // debug!("client recv msg from peer {}", peer);
@@ -113,7 +115,7 @@ struct HandleMessageState {
     net_objs: HashMap<NetId, (NetObj, GameTick)>,
 }
 
-/// Process client messages. Updates and spawns net objects based on server messages.
+/// Process server messages. Updates [`Networked`] components and spawns new [`NetObj`].
 ///
 /// Only runs on [`NetTick`]s.
 // TODO: look into exclusive system instead of using commands
