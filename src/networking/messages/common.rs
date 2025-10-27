@@ -1,10 +1,13 @@
 use bevy::ecs::resource::Resource;
 use serde::{Deserialize, Serialize};
 
+/// Maximum serialized message size in bytes.
+///
+/// Based on MTU - UDP header.
 // TODO: dynamically change this based on network behavior?
-// UDP header is 8 bytes
-pub(crate) const MAX_PACKET_SIZE: usize = 1500 - 8;
+pub(crate) const MAX_MESSAGE_SIZE: usize = 1500 - 8;
 
+/// Common header for all messages.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub(crate) struct NetHeader {
     // TODO: versioning, timing/network stuff for bandwidth calcs?
@@ -30,6 +33,7 @@ impl<T> MessageBuffer<T> {
     }
 }
 
+/// Indicates that an operation would cause the message to exceed the maximum size.
 #[derive(Debug, thiserror::Error)]
 #[error("Message would exceed max size of {max}B, currently {current}B")]
 pub(crate) struct MessageWouldExceedMax {
@@ -37,6 +41,7 @@ pub(crate) struct MessageWouldExceedMax {
     pub(crate) max: usize,
 }
 
+/// Return the serialized size of the argument in bytes.
 pub(crate) fn serialized_size(ser: &impl Serialize) -> usize {
     postcard::serialize_with_flavor(ser, postcard::ser_flavors::Size::default()).unwrap()
 }

@@ -98,6 +98,7 @@ fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<Cl
 /// Stores IDs of all net objects that were changed this tick.
 ///
 /// Cleared every tick via [`clear_net_object_updates`].
+// TODO: replace with events! struct NetObjectUpdateEvent { entity: Entity, net_id: NetId, tick: GameTick }
 #[derive(Debug, Resource, Default)]
 struct NetObjectUpdates(HashMap<NetId, GameTick>);
 
@@ -114,6 +115,9 @@ struct HandleMessageState {
     net_objs: HashMap<NetId, (NetObj, GameTick)>,
 }
 
+/// Process client messages. Updates and spawns net objects based on server messages.
+///
+/// Only runs on [`NetTick`]s.
 // TODO: look into exclusive system instead of using commands
 fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
@@ -208,11 +212,12 @@ fn client_handle_messages(
     }
 }
 
+/// Clear net object updates. Should only be run *after* systems that require them.
 fn clear_net_object_updates(mut updates: ResMut<NetObjectUpdates>) {
     updates.0.clear();
 }
 
-/// Applies the value inside a [`Networked`] component to the non-networked equivalent component,
+/// Apply the value inside a [`Networked`] component to the non-networked equivalent component,
 /// if the network object was updated this frame.
 // TODO: interpolation/extrapolation
 fn client_apply_networked<T>(
@@ -237,6 +242,9 @@ fn client_apply_networked<T>(
     }
 }
 
+/// Send client data to the server.
+///
+/// Only runs on [`NetTick`]s.
 fn client_send_data(
     mut net_client: ResMut<NetClient>,
     query: Query<&PlayerInput, With<LocalPlayerMarker>>,
@@ -253,7 +261,7 @@ fn client_send_data(
 
     let mut message = ClientDataMessageBuilder::new(NetHeader {}, *inputs);
 
-    // TODO: push acks
+    // push acks
     for (net_id, tick) in updates.0.iter() {
         if message
             .try_add_ack(NetObjAck {
@@ -271,6 +279,7 @@ fn client_send_data(
     debug!("client sent message: {message:?}");
 }
 
+/// Send an unregister message if the bevy app is about to exit.
 fn client_send_disconnect(
     mut net_client: ResMut<NetClient>,
     mut event_reader: EventReader<AppExit>,

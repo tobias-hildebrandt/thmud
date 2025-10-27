@@ -15,11 +15,15 @@ use crate::simulation::player::LocalPlayerMarker;
 #[derive(Component)]
 struct GameCamera;
 
+/// Spawn the game camera.
+///
+/// One-time system.
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((Camera2d, GameCamera));
 }
 
-// TODO: smooth
+/// Keep the game camera centered on the local player.
+// TODO: smoothing
 fn camera_follow_local_player(
     mut camera: Query<&mut Transform, With<GameCamera>>,
     local_player: Query<&Transform, (With<LocalPlayerMarker>, Without<GameCamera>)>,
@@ -33,6 +37,7 @@ fn camera_follow_local_player(
     camera_transform.translation = player_transform.translation;
 }
 
+/// Plugin for the game camera.
 pub(crate) struct GameCameraPlugin;
 
 impl Plugin for GameCameraPlugin {

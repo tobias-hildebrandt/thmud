@@ -25,6 +25,7 @@ use bevy::{
     transform::TransformPlugin,
     window::{MonitorSelection, Window, WindowPlugin, WindowPosition},
 };
+use tracing::info;
 
 /// The run type of the process.
 ///
@@ -38,6 +39,8 @@ pub enum RunType {
 /// Build and return the bevy [`App`] for the given [`RunType`].
 pub fn app(run_type: RunType) -> App {
     let mut app = App::new();
+
+    info!("run type: {run_type:?}");
 
     match run_type {
         RunType::Client => {

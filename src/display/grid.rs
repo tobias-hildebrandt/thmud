@@ -12,6 +12,7 @@ use bevy::{
 };
 use tracing::debug;
 
+/// Plugin that spawns a visual grid onto the world.
 pub(crate) struct GameDrawGridPlugin;
 
 impl Plugin for GameDrawGridPlugin {
@@ -20,6 +21,11 @@ impl Plugin for GameDrawGridPlugin {
     }
 }
 
+/// Spawn several grid lines.
+///
+/// One-time system.
+// TODO: spawn them around the local player, despawn them when the player moves too far away.
+// TODO: add numbers every so often
 fn spawn_grid(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

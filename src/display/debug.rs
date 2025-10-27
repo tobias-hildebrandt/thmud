@@ -8,6 +8,7 @@ use iyes_perf_ui::{
     prelude::{PerfUiEntryEntityCount, PerfUiEntryFPS, PerfUiEntryFPSAverage},
 };
 
+/// Plugin that enables a UI overlay containing debug info.
 // TODO: split into debug overlay (UI) and debug via logs, etc
 pub(crate) struct GameDebugUiPlugin;
 
