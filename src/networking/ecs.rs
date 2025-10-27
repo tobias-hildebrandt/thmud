@@ -12,7 +12,7 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::simulation::{
-    player::{PlayerNet, PlayerNetQuery},
+    player::{PlayerId, PlayerNet, PlayerNetQuery},
     thingy::{ThingyNet, ThingyNetQuery},
 };
 
@@ -50,6 +50,7 @@ client system order:
 #[serde(transparent)]
 pub(crate) struct Networked<T>(#[from] pub(crate) T);
 
+/// Used by client to only update net object states from the future.
 #[derive(Debug, Component, Clone, Copy)]
 pub(crate) struct LastNetUpdate(pub(crate) GameTick);
 
@@ -87,6 +88,13 @@ impl NetObj {
         match self {
             NetObj::Player(player_net) => Some(player_net.physics.transform.0.translation),
             NetObj::Thingy(thingy_net) => Some(thingy_net.physics.transform.0.translation),
+        }
+    }
+
+    pub(crate) fn player_id(&self) -> Option<PlayerId> {
+        match self {
+            NetObj::Player(player_net) => Some(player_net.player_id.0),
+            NetObj::Thingy(_) => None,
         }
     }
 }

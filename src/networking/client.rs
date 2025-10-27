@@ -20,8 +20,8 @@ use crate::{
     networking::{ecs::NetObj, sockets::NetClient},
     simulation::{
         input::{PlayerInput, input_quit, read_local_inputs},
-        player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
-        thingy::{Thingy, ThingyNet},
+        player::{LocalPlayerMarker, Player, PlayerId},
+        thingy::Thingy,
     },
 };
 
@@ -36,6 +36,7 @@ use super::{
     tick::GameTick,
 };
 
+/// Plugin for the network client.
 pub(crate) struct GameClientPlugin;
 
 impl Plugin for GameClientPlugin {
@@ -77,8 +78,10 @@ impl Plugin for GameClientPlugin {
     }
 }
 
+/// Buffer for client messages.
 type ClientBuffer = MessageBuffer<ServerMessage>;
 
+/// Read messages off of the socket and push them into the buffer.
 fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<ClientBuffer>) {
     while let Ok(Some((msg, peer))) = net_client.socket.recv() {
         // debug!("client recv msg from peer {}", peer);
@@ -92,32 +95,29 @@ fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<Cl
     }
 }
 
-/// Stores IDs of all net objects that were changed this frame.
+/// Stores IDs of all net objects that were changed this tick.
+///
+/// Cleared every tick via [`clear_net_object_updates`].
 #[derive(Debug, Resource, Default)]
 struct NetObjectUpdates(HashMap<NetId, GameTick>);
 
-#[derive(Debug)]
-struct NetsById<T>(HashMap<NetId, T>);
-
-impl<T> Default for NetsById<T> {
-    fn default() -> Self {
-        Self(HashMap::new())
-    }
-}
-
+/// State necessary for handling messages during a tick.
+///
+/// (Only used locally in [`client_handle_messages`]).
 #[derive(Debug, Default)]
 struct HandleMessageState {
-    // entities spawned so far, so we don't double-spawn them
+    /// Entities that we have spawned already (so we don't double-spawn them).
     spawned: HashSet<NetId>,
+    /// This client's player ID, which is sent by the server in every message.
     my_player_id: Option<PlayerId>,
-
-    thingy: NetsById<(ThingyNet, GameTick)>,
-    player: NetsById<(PlayerNet, GameTick)>,
+    /// Cache for net objects that we need to spawn.
+    net_objs: HashMap<NetId, (NetObj, GameTick)>,
 }
 
 // TODO: look into exclusive system instead of using commands
 fn client_handle_messages(
     mut buffer: ResMut<ClientBuffer>,
+    // TODO: use QueryData struct for this?
     query: Query<(Entity, &NetId, &mut LastNetUpdate)>,
     mut commands: Commands,
     mut updates: ResMut<NetObjectUpdates>,
@@ -142,73 +142,68 @@ fn client_handle_messages(
                 ServerBodyElement::YourPlayerId(player_id) => {
                     state.my_player_id = Some(player_id);
                 }
-                ServerBodyElement::NetObj(net_obj) => match net_obj {
-                    NetObj::Player(player_net) => {
-                        state.player.0.insert(player_net.net_id, (player_net, tick));
-                    }
-                    NetObj::Thingy(thingy_net) => {
-                        state.thingy.0.insert(thingy_net.net_id, (thingy_net, tick));
-                    }
-                },
+                ServerBodyElement::NetObj(net_obj) => {
+                    state.net_objs.insert(net_obj.net_id(), (net_obj, tick));
+                }
             }
         }
     }
 
     // update for pre-existing entity
     for (entity, net_id, mut last_update) in query {
-        let mut this_update = None;
-        if let Some((thingy, tick)) = state.thingy.0.remove(net_id)
-            && tick > last_update.0
-        {
-            commands.entity(entity).insert(thingy);
-            last_update.0 = tick;
-            this_update = Some(tick);
-        }
-
-        if let Some((player, tick)) = state.player.0.remove(net_id)
+        if let Some((net_obj, tick)) = state.net_objs.remove(net_id)
             && tick > last_update.0
         {
             let mut commands = commands.entity(entity);
-            if state.my_player_id.is_some_and(|i| i == player.player_id.0) {
+
+            // check if local player
+            // TODO: technically unnecessary if player id never changes?
+            if let Some(net_player_id) = net_obj.player_id()
+                && let Some(my_player_id) = state.my_player_id
+                && my_player_id == net_player_id
+            {
                 commands.insert(LocalPlayerMarker);
             }
-            commands.insert(player);
 
+            // overwrite the net components
+            match net_obj {
+                NetObj::Player(player_net) => commands.insert(player_net),
+                NetObj::Thingy(thingy_net) => commands.insert(thingy_net),
+            };
+
+            // make sure to update
             last_update.0 = tick;
-            this_update = Some(tick);
-        }
 
-        // make sure the later systems actually apply the change
-        if let Some(tick) = this_update {
+            // make sure the later systems actually apply the change
             updates.0.insert(*net_id, tick);
         }
     }
 
-    // spawn new thingies
-    for (net_id, (thingy, tick)) in state.thingy.0 {
+    // spawn new net objs
+    for (net_id, (net_obj, tick)) in state.net_objs {
         // do not spawn twice
         if !state.spawned.contains(&net_id) {
             state.spawned.insert(net_id);
 
-            commands.spawn(Thingy::client_bundle(thingy, tick));
-        }
-    }
+            let mut commands = commands.spawn_empty();
 
-    // spawn new players
-    for (net_id, (player, tick)) in state.player.0 {
-        // do not spawn twice
-        if !state.spawned.contains(&net_id) {
-            state.spawned.insert(net_id);
-
-            let player_is_me = state.my_player_id.is_some_and(|i| i == player.player_id.0);
-
-            let bundle = Player::client_bundle(player, tick);
-
-            if player_is_me {
-                commands.spawn((bundle, LocalPlayerMarker));
-            } else {
-                commands.spawn(bundle);
+            // check if local player
+            if let Some(net_player_id) = net_obj.player_id()
+                && let Some(my_player_id) = state.my_player_id
+                && my_player_id == net_player_id
+            {
+                commands.insert(LocalPlayerMarker);
             }
+
+            // spawn entire bundle
+            match net_obj {
+                NetObj::Player(player_net) => {
+                    commands.insert(Player::client_bundle(player_net, tick))
+                }
+                NetObj::Thingy(thingy_net) => {
+                    commands.insert(Thingy::client_bundle(thingy_net, tick))
+                }
+            };
         }
     }
 }
