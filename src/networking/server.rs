@@ -25,7 +25,7 @@ use super::{
         server_messages::{ServerBodyElement, ServerMessage},
     },
     netrate::NetTick,
-    sockets::{NetServerSocket, real::RealNetServerSocket},
+    sockets::NetServer,
     tick::GameTick,
 };
 use crate::{
@@ -48,9 +48,12 @@ impl Plugin for GameServerPlugin {
         let port = std::env::var("SERVER_PORT")
             .ok()
             .and_then(|s| s.parse().ok());
-        let socket = NetServerSocket(RealNetServerSocket::new(port).unwrap());
-        info!("server bound to address: {}", socket.address().unwrap());
-        app.insert_resource(socket);
+        let net_server = NetServer::new(port).unwrap();
+        info!(
+            "server bound to address: {}",
+            net_server.socket.address().unwrap()
+        );
+        app.insert_resource(net_server);
 
         let clients = Clients(Default::default());
         app.insert_resource(clients);
@@ -90,8 +93,8 @@ impl ClientInfo {
 
 type ServerBuffer = MessageBuffer<(ClientMessage, SocketAddr)>;
 
-fn server_recv_messages(mut server: ResMut<NetServerSocket>, mut buffer: ResMut<ServerBuffer>) {
-    while let Ok(Some((msg, peer))) = server.recv() {
+fn server_recv_messages(mut net_server: ResMut<NetServer>, mut buffer: ResMut<ServerBuffer>) {
+    while let Ok(Some((msg, peer))) = net_server.socket.recv() {
         debug!("server recv msg from peer {peer:?}");
         buffer.messages.push((msg, peer));
     }
@@ -174,7 +177,7 @@ fn server_handle_messages(
 
 fn server_send(
     mut clients: ResMut<Clients>,
-    mut socket: ResMut<NetServerSocket>,
+    mut net_server: ResMut<NetServer>,
     net_objs: Query<NetObjQuery>,
     tick: Res<GameTick>,
     mut net_tick: EventReader<NetTick>,
@@ -237,7 +240,7 @@ fn server_send(
             client_state.set_sent_tick(net_id, *tick);
         }
 
-        socket.send_to(&message, *peer).unwrap();
+        net_server.socket.send_to(&message, *peer).unwrap();
         debug!(
             "sent packet to {peer:?} with {} body elements",
             message.body_elements().len()

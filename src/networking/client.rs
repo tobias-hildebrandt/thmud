@@ -17,7 +17,7 @@ use bevy_rapier2d::prelude::{ExternalForce, Velocity};
 use tracing::{debug, warn};
 
 use crate::{
-    networking::ecs::NetObj,
+    networking::{ecs::NetObj, sockets::NetClient},
     simulation::{
         input::{PlayerInput, input_quit, read_local_inputs},
         player::{LocalPlayerMarker, Player, PlayerId, PlayerNet},
@@ -33,7 +33,6 @@ use super::{
         server_messages::{ServerBodyElement, ServerMessage},
     },
     netrate::NetTick,
-    sockets::{NetClientSocket, debug::DebugNetSocket, real::RealNetClientSocket},
     tick::GameTick,
 };
 
@@ -41,16 +40,16 @@ pub(crate) struct GameClientPlugin;
 
 impl Plugin for GameClientPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        let mut socket = if let Ok(addr) = std::env::var("SERVER_ADDR") {
-            NetClientSocket::Real(RealNetClientSocket::new(addr.parse().unwrap()).unwrap())
-        } else {
-            // TODO: load/deser actions from filesystem?
-            NetClientSocket::Debug(DebugNetSocket::new())
-        };
-        let m = ClientMessage::register(NetHeader {});
-        socket.send(&m).unwrap();
+        let addr = std::env::var("SERVER_ADDR")
+            .expect("no SERVER_ADDR env var")
+            .parse()
+            .expect("SERVER_ADDR not valid SocketAddr");
+        let mut net_client = NetClient::new(addr).unwrap();
 
-        app.insert_resource(socket);
+        let m = ClientMessage::register(NetHeader {});
+        net_client.send_to_server(&m).unwrap();
+
+        app.insert_resource(net_client);
         app.insert_resource(ClientBuffer::new());
         app.insert_resource(NetObjectUpdates::default());
 
@@ -80,11 +79,11 @@ impl Plugin for GameClientPlugin {
 
 type ClientBuffer = MessageBuffer<ServerMessage>;
 
-fn client_recv_messages(mut socket: ResMut<NetClientSocket>, mut buffer: ResMut<ClientBuffer>) {
-    while let Ok(Some((msg, peer))) = socket.recv() {
+fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<ClientBuffer>) {
+    while let Ok(Some((msg, peer))) = net_client.socket.recv() {
         // debug!("client recv msg from peer {}", peer);
 
-        if peer != socket.server_addr() {
+        if peer != net_client.server_addr() {
             // drop it
             warn!("dropping msg from non-server addr");
             continue;
@@ -244,7 +243,7 @@ fn client_apply_networked<T>(
 }
 
 fn client_send_data(
-    mut socket: ResMut<NetClientSocket>,
+    mut net_client: ResMut<NetClient>,
     query: Query<&PlayerInput, With<LocalPlayerMarker>>,
     updates: Res<NetObjectUpdates>,
     mut net_tick: EventReader<NetTick>,
@@ -273,17 +272,17 @@ fn client_send_data(
     }
 
     let message = message.build();
-    socket.send(&message).unwrap();
+    net_client.send_to_server(&message).unwrap();
     debug!("client sent message: {message:?}");
 }
 
 fn client_send_disconnect(
-    mut socket: ResMut<NetClientSocket>,
+    mut net_client: ResMut<NetClient>,
     mut event_reader: EventReader<AppExit>,
 ) {
     if event_reader.read().next().is_some() {
         let message = ClientMessage::unregister(NetHeader {});
 
-        socket.send(&message).unwrap();
+        net_client.send_to_server(&message).unwrap();
     }
 }
