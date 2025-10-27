@@ -53,7 +53,9 @@ impl Plugin for GameServerPlugin {
             "server bound to address: {}",
             net_server.socket.address().unwrap()
         );
+
         app.insert_resource(net_server);
+        app.insert_resource(ServerBuffer::new());
 
         let clients = Clients(Default::default());
         app.insert_resource(clients);
@@ -68,8 +70,6 @@ impl Plugin for GameServerPlugin {
         );
 
         app.add_systems(FixedPostUpdate, server_send);
-
-        app.insert_resource(ServerBuffer::new());
     }
 }
 

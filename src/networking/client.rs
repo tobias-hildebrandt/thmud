@@ -5,11 +5,10 @@ use bevy::{
     ecs::{
         component::{Component, Mutable},
         entity::Entity,
-        event::EventReader,
+        event::{Event, EventReader, EventWriter},
         query::With,
-        resource::Resource,
         schedule::IntoScheduleConfigs,
-        system::{Commands, Query, Res, ResMut},
+        system::{Commands, Query, ResMut},
     },
     transform::components::Transform,
 };
@@ -52,14 +51,15 @@ impl Plugin for GameClientPlugin {
 
         app.insert_resource(net_client);
         app.insert_resource(ClientBuffer::new());
-        app.insert_resource(NetObjectUpdates::default());
+
+        app.add_event::<NetObjectUpdateEvent>();
 
         app.add_systems(
             FixedPreUpdate,
             (
                 client_recv_messages.before(client_handle_messages),
-                clear_net_object_updates.before(client_handle_messages),
                 client_handle_messages,
+                (client_send_data.after(read_local_inputs)),
                 (
                     client_apply_networked::<Velocity>,
                     client_apply_networked::<Transform>,
@@ -67,11 +67,8 @@ impl Plugin for GameClientPlugin {
                     client_apply_networked::<ExternalForce>,
                 )
                     .after(client_handle_messages)
-                    .after(clear_net_object_updates)
-                    .after(
-                        client_send_data, /* DON'T OVERWRITE UNTIL AFTER WE ACK */
-                    ),
-                (client_send_data.after(read_local_inputs)),
+                    // DON'T OVERWRITE UNTIL AFTER WE ACK
+                    .after(client_send_data),
                 client_send_disconnect.after(input_quit),
             ),
         );
@@ -95,12 +92,13 @@ fn client_recv_messages(mut net_client: ResMut<NetClient>, mut buffer: ResMut<Cl
     }
 }
 
-/// Stores IDs of all net objects that were changed this tick.
-///
-/// Cleared every tick via [`clear_net_object_updates`].
-// TODO: replace with events! struct NetObjectUpdateEvent { entity: Entity, net_id: NetId, tick: GameTick }
-#[derive(Debug, Resource, Default)]
-struct NetObjectUpdates(HashMap<NetId, GameTick>);
+/// An event that is written whenever a [`NetObj`] is updated due to a server message.
+#[derive(Debug, Event)]
+struct NetObjectUpdateEvent {
+    entity: Entity,
+    net_id: NetId,
+    tick: GameTick,
+}
 
 /// State necessary for handling messages during a tick.
 ///
@@ -124,7 +122,7 @@ fn client_handle_messages(
     // TODO: use QueryData struct for this?
     query: Query<(Entity, &NetId, &mut LastNetUpdate)>,
     mut commands: Commands,
-    mut updates: ResMut<NetObjectUpdates>,
+    mut update_writer: EventWriter<NetObjectUpdateEvent>,
     mut net_tick: EventReader<NetTick>,
 ) {
     if net_tick.read().count() == 0 {
@@ -179,7 +177,11 @@ fn client_handle_messages(
             last_update.0 = tick;
 
             // make sure the later systems actually apply the change
-            updates.0.insert(*net_id, tick);
+            update_writer.write(NetObjectUpdateEvent {
+                entity,
+                net_id: *net_id,
+                tick,
+            });
         }
     }
 
@@ -190,6 +192,7 @@ fn client_handle_messages(
             state.spawned.insert(net_id);
 
             let mut commands = commands.spawn_empty();
+            let entity = commands.id();
 
             // check if local player
             if let Some(net_player_id) = net_obj.player_id()
@@ -208,37 +211,40 @@ fn client_handle_messages(
                     commands.insert(Thingy::client_bundle(thingy_net, tick))
                 }
             };
+
+            // make sure the later systems actually apply the change
+            // (not technically needed to update the components, but needed for sending ACKs)
+            update_writer.write(NetObjectUpdateEvent {
+                entity,
+                net_id,
+                tick,
+            });
         }
     }
-}
-
-/// Clear net object updates. Should only be run *after* systems that require them.
-fn clear_net_object_updates(mut updates: ResMut<NetObjectUpdates>) {
-    updates.0.clear();
 }
 
 /// Apply the value inside a [`Networked`] component to the non-networked equivalent component,
 /// if the network object was updated this frame.
 // TODO: interpolation/extrapolation
 fn client_apply_networked<T>(
-    updates: Res<NetObjectUpdates>,
-    query: Query<(&NetId, &mut T, &Networked<T>, Option<&LocalPlayerMarker>)>,
+    mut updates: EventReader<NetObjectUpdateEvent>,
+    mut query: Query<(&mut T, &Networked<T>, Option<&LocalPlayerMarker>)>,
 ) where
     T: Component<Mutability = Mutable> + Clone,
 {
-    for (net_id, mut real, networked, local) in query {
-        if updates.0.contains_key(net_id) {
-            if local.is_some() {
-                debug!(
-                    "applying networked local player's {:?}",
-                    std::any::type_name_of_val(&networked.0)
-                        .split("::")
-                        .last()
-                        .unwrap()
-                );
-            }
-            *real = networked.0.clone();
+    for update_event in updates.read() {
+        let Ok((mut real, networked, local)) = query.get_mut(update_event.entity) else {
+            continue;
+        };
+
+        if local.is_some() {
+            debug!(
+                "applying networked local player's {:?}",
+                std::any::type_name::<T>().split("::").last().unwrap()
+            );
         }
+
+        *real = networked.0.clone();
     }
 }
 
@@ -248,7 +254,7 @@ fn client_apply_networked<T>(
 fn client_send_data(
     mut net_client: ResMut<NetClient>,
     query: Query<&PlayerInput, With<LocalPlayerMarker>>,
-    updates: Res<NetObjectUpdates>,
+    mut updates: EventReader<NetObjectUpdateEvent>,
     mut net_tick: EventReader<NetTick>,
 ) {
     if net_tick.read().count() == 0 {
@@ -262,11 +268,11 @@ fn client_send_data(
     let mut message = ClientDataMessageBuilder::new(NetHeader {}, *inputs);
 
     // push acks
-    for (net_id, tick) in updates.0.iter() {
+    for update_event in updates.read() {
         if message
             .try_add_ack(NetObjAck {
-                net_id: *net_id,
-                tick: *tick,
+                net_id: update_event.net_id,
+                tick: update_event.tick,
             })
             .is_err()
         {
