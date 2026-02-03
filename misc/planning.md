@@ -32,20 +32,32 @@
 - client extrapolation
 - server rollback too?
 
+## Network ECS
+- bevy sub-app/multi-world support not yet ergonomic
+- on client: run network world objects in same world
+  - add separate components for "network" vs "client" state
+  - interpolate between network and client state on recv
+  - extrapolate client state between recv's
+- OR
+  - just shove "duplicate" network components on entities
+    - generic wrapper type?
+  - makes queries simpler?
+  - may run into problems with entity "lifetimes"
+- on server:
+  - no separate components -- no rendering/input
 
 # Roadmap
 - [x] set up git, cargo, github actions
 - [x] render shapes, singleplayer WASD movement
-- [x] walls, collisions
+- [x] collisions
+- [x] (BIG) split into server/client
 - [ ] add simple weapon and animation
 - [ ] enemy, hit-/hurt-boxes
-- [ ] (BIG) split into basic server/client
 - [ ] simple enemy movement AI
 - [ ] saving, loading, syncing state
 - [ ] health, resources
 - [ ] items + inventory
 - [ ] ranged weapons, projectiles
-- [ ] optimize netcode, extrapolation, interpolation, etc.
 - [ ] levels, transitions
 - [ ] shops? UIs
 - [ ] menus, settings

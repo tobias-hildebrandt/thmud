@@ -1,6 +1,6 @@
-pub mod assets;
-pub mod camera;
-pub mod input;
-pub mod physics;
-pub mod player;
-pub mod thingy;
+pub use app::{RunType, app};
+
+pub(crate) mod app;
+pub(crate) mod display;
+pub(crate) mod networking;
+pub(crate) mod simulation;
