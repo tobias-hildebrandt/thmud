@@ -1,0 +1,13 @@
+[package]
+name = "sync-test"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "sync-test"
+path = "src/bin/sync-test.rs"
+
+[dependencies]
+rand = "0.9.2"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.22"
