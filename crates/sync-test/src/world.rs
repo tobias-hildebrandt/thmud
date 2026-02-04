@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Copy)]
-pub(super) struct CellLocation {
-    pub(super) row: usize,
-    pub(super) column: usize,
+pub struct CellLocation {
+    pub row: usize,
+    pub column: usize,
 }
 
 #[derive(Debug)]

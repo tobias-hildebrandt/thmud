@@ -82,10 +82,8 @@ pub(super) fn send_updates(
     world: &WorldCells,
     sync_states: &mut WorldSyncState,
     num_updates: usize,
+    center: &CellLocation,
 ) -> MessageToClient {
-    let origin_row = 0;
-    let origin_column = 0;
-
     let mut all_priorities: Vec<PriorityCalc> =
         Vec::with_capacity(world.world_size * world.world_size);
 
@@ -98,17 +96,17 @@ pub(super) fn send_updates(
                     current_tick.0.saturating_sub(sent.0)
                 }
             };
-            let staleness_frac = ticks_without_ack as f32 / DELAY_TARGET as f32;
+            let staleness_fraction = ticks_without_ack as f32 / DELAY_TARGET as f32;
 
-            let row_distance = row as f32 - origin_row as f32;
-            let column_distance = column as f32 - origin_column as f32;
+            let row_distance = row as f32 - center.row as f32;
+            let column_distance = column as f32 - center.column as f32;
             let distance = (square(row_distance) + square(column_distance)).sqrt();
-            let distance_frac = distance / DISTANCE_TARGET;
+            let distance_fraction = distance / DISTANCE_TARGET;
 
-            let staleness_mult = 2f32.powf(staleness_frac - 1.0);
-            let distance_mult = 2f32.powf(-distance_frac) + 0.5;
+            let staleness_factor = 2f32.powf(staleness_fraction - 1.0);
+            let distance_factor = 2f32.powf(-distance_fraction) + 0.5;
 
-            let priority = staleness_mult * distance_mult;
+            let priority = staleness_factor * distance_factor;
 
             all_priorities.push(PriorityCalc {
                 location: CellLocation { row, column },

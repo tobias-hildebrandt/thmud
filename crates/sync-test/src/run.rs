@@ -47,6 +47,7 @@ pub fn run_sync_test(config: &SyncTestConfig) {
                 &server_world,
                 &mut sync_states,
                 config.num_sync_updates,
+                &config.center.0,
             );
             let updates_str = message_to_client
                 .updates
