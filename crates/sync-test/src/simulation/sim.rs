@@ -1,11 +1,14 @@
-use crate::{
-    Tick,
+use crate::simulation::{
     client::client_handle_message,
     config::SyncTestConfig,
     messages::{MessageQueue, MessageToClient, MessageToServer},
     server::{WorldSyncState, send_updates, server_handle_message},
     world::{TwoWorldDisplay, WorldCells},
 };
+
+/// Time in ticks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Tick(pub(crate) u128);
 
 // TODO: split server+client(s)
 #[derive(Debug)]

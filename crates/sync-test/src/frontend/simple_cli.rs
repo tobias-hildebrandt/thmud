@@ -2,17 +2,17 @@ use std::{fmt::Display, io::Read, str::FromStr, time::Duration};
 
 use clap::Parser;
 
-use crate::{config::SyncTestConfig, sim::Sim};
+use crate::simulation::{config::SyncTestConfig, sim::Sim};
 
+/// Config for the simple cli.
 #[derive(Debug, Parser)]
-pub struct CliConfig {
+pub struct SimpleCliConfig {
+    /// How the cli should wait for the next tick.
     #[arg(long, default_value_t = Self::default_wait_for_tick())]
     pub wait_for_tick: WaitForTick,
-    #[command(flatten)]
-    pub sync_config: SyncTestConfig,
 }
 
-impl CliConfig {
+impl SimpleCliConfig {
     fn default_wait_for_tick() -> WaitForTick {
         WaitForTick::Stdin
     }
@@ -46,7 +46,7 @@ impl Display for WaitForTick {
 }
 
 impl WaitForTick {
-    pub(super) fn wait(&self) {
+    pub(crate) fn wait(&self) {
         match self {
             WaitForTick::Sleep(duration) => std::thread::sleep(*duration),
             WaitForTick::Stdin => {
@@ -66,11 +66,11 @@ impl WaitForTick {
     }
 }
 
-pub fn run_cli(config: CliConfig) {
-    let mut sim = Sim::new(config.sync_config);
+pub fn run_simple_cli(cli_config: SimpleCliConfig, config: SyncTestConfig) {
+    let mut sim = Sim::new(config);
 
     loop {
-        config.wait_for_tick.wait();
+        cli_config.wait_for_tick.wait();
 
         sim.tick();
     }

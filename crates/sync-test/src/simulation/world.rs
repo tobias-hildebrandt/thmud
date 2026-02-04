@@ -5,13 +5,13 @@ pub struct CellLocation {
 }
 
 #[derive(Debug)]
-pub(super) struct WorldData<Data> {
-    pub(super) world_size: usize,
-    pub(super) data: Box<[Box<[Data]>]>,
+pub struct WorldData<Data> {
+    pub(crate) world_size: usize,
+    pub data: Box<[Box<[Data]>]>,
 }
 
 impl<Data: Default> WorldData<Data> {
-    pub(super) fn new(world_size: usize, generate: impl Fn(usize, usize) -> Data) -> Self {
+    pub(crate) fn new(world_size: usize, generate: impl Fn(usize, usize) -> Data) -> Self {
         Self {
             world_size,
             data: (0..world_size)
@@ -24,20 +24,20 @@ impl<Data: Default> WorldData<Data> {
         }
     }
 
-    pub(super) fn new_default(world_size: usize) -> Self {
+    pub(crate) fn new_default(world_size: usize) -> Self {
         Self::new(world_size, |_, _| Default::default())
     }
 }
 
-pub(super) type WorldCells = WorldData<WorldCell>;
+pub(crate) type WorldCells = WorldData<WorldCell>;
 
 impl WorldCells {
-    pub(super) fn new_random(world_size: usize) -> Self {
+    pub(crate) fn new_random(world_size: usize) -> Self {
         Self::new(world_size, |_, _| WorldCell {
             state: rand::random(),
         })
     }
-    pub(super) fn random_mutation(&mut self) {
+    pub(crate) fn random_mutation(&mut self) {
         let row = rand::random_range(0..self.world_size);
         let column = rand::random_range(0..self.world_size);
 
@@ -58,9 +58,9 @@ impl std::fmt::Display for WorldCells {
     }
 }
 
-pub(super) struct TwoWorldDisplay<'a> {
-    pub(super) server: &'a WorldCells,
-    pub(super) client: &'a WorldCells,
+pub(crate) struct TwoWorldDisplay<'a> {
+    pub(crate) server: &'a WorldCells,
+    pub(crate) client: &'a WorldCells,
 }
 
 impl<'a> std::fmt::Display for TwoWorldDisplay<'a> {
@@ -97,8 +97,8 @@ impl<'a> std::fmt::Display for TwoWorldDisplay<'a> {
 }
 
 #[derive(Debug)]
-pub(super) struct WorldCell {
-    pub(super) state: u8,
+pub struct WorldCell {
+    pub state: u8,
 }
 
 impl WorldCell {

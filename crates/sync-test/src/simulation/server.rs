@@ -1,14 +1,16 @@
 use crate::{
-    Tick,
-    messages::{EntityUpdate, MessageToClient, MessageToServer},
-    square,
-    world::{CellLocation, WorldCells, WorldData},
+    simulation::{
+        messages::{EntityUpdate, MessageToClient, MessageToServer},
+        sim::Tick,
+        world::{CellLocation, WorldCells, WorldData},
+    },
+    utils::square,
 };
 
-pub(super) type WorldSyncState = WorldData<CellSyncState>;
+pub(crate) type WorldSyncState = WorldData<CellSyncState>;
 
 #[derive(Debug, Default)]
-pub(super) enum CellSyncState {
+pub(crate) enum CellSyncState {
     #[default]
     NotSynced,
     Sent {
@@ -60,7 +62,7 @@ impl CellSyncState {
     }
 }
 
-pub(super) struct PriorityCalc {
+pub(crate) struct PriorityCalc {
     location: CellLocation,
     priority: f32,
 }
@@ -68,7 +70,7 @@ pub(super) struct PriorityCalc {
 const DELAY_TARGET: usize = 10;
 const DISTANCE_TARGET: f32 = 10.0;
 
-pub(super) fn server_handle_message(sync_states: &mut WorldSyncState, message: MessageToServer) {
+pub(crate) fn server_handle_message(sync_states: &mut WorldSyncState, message: MessageToServer) {
     tracing::debug!("server handling message: {:?}", message);
     for location in message.cells {
         let state = &mut sync_states.data[location.row][location.column];
@@ -77,7 +79,7 @@ pub(super) fn server_handle_message(sync_states: &mut WorldSyncState, message: M
 }
 
 // TODO: adjust priority curves
-pub(super) fn send_updates(
+pub(crate) fn send_updates(
     current_tick: Tick,
     world: &WorldCells,
     sync_states: &mut WorldSyncState,

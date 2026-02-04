@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::{Tick, world::CellLocation};
+use crate::simulation::{sim::Tick, world::CellLocation};
 
 /// A whole-state update.
 #[derive(Debug)]
@@ -19,15 +19,15 @@ pub(crate) struct EntityUpdate<Id, State> {
 }
 
 #[derive(Debug)]
-pub(super) struct MessageQueue<Message>(VecDeque<TickMessage<Message>>);
+pub(crate) struct MessageQueue<Message>(VecDeque<TickMessage<Message>>);
 
 impl<Message> MessageQueue<Message> {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Default::default()
     }
 
     /// Pop a message if it's time to deliver it.
-    pub(super) fn try_pop(&mut self, current_tick: Tick) -> Option<Message> {
+    pub(crate) fn try_pop(&mut self, current_tick: Tick) -> Option<Message> {
         if self
             .0
             .front()
@@ -41,7 +41,7 @@ impl<Message> MessageQueue<Message> {
     }
 
     /// Push a message to be delivered at a specific tick.
-    pub(super) fn push(&mut self, message: Message, tick: Tick) {
+    pub(crate) fn push(&mut self, message: Message, tick: Tick) {
         self.0.push_back(TickMessage {
             tick_to_arrive: tick,
             message,
@@ -60,17 +60,17 @@ impl<Message> Default for MessageQueue<Message> {
     }
 }
 
-pub(super) type MessageToClient = Update<CellLocation, u8>;
+pub(crate) type MessageToClient = Update<CellLocation, u8>;
 
 #[derive(Debug)]
 pub struct MessageToServer {
-    pub(super) ack: Tick,
-    pub(super) cells: Vec<CellLocation>,
+    pub(crate) ack: Tick,
+    pub(crate) cells: Vec<CellLocation>,
 }
 
 /// Mock "messages in flight" that arrive at a specific tick.
 #[derive(Debug)]
-pub(super) struct TickMessage<Message> {
-    pub(super) tick_to_arrive: Tick,
-    pub(super) message: Message,
+pub(crate) struct TickMessage<Message> {
+    pub(crate) tick_to_arrive: Tick,
+    pub(crate) message: Message,
 }

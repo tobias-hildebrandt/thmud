@@ -3,18 +3,24 @@ use std::{fmt::Display, ops::Range, str::FromStr};
 use anyhow::Context;
 use clap::Parser;
 
-use crate::world::CellLocation;
+use crate::simulation::world::CellLocation;
 
+/// Simulation config.
 #[derive(Debug, Parser)]
 pub struct SyncTestConfig {
+    /// Size of world (one side of the square).
     #[arg(long, default_value_t = Self::default_world_size())]
     pub world_size: usize,
+    /// Simulated packet latency (static or range).
     #[arg(long, default_value_t = Self::default_latency())]
     pub latency: StaticOrRandom,
+    /// Server world mutations per tick (static or range).
     #[arg(long, default_value_t = Self::default_mutations_per_tick())]
     pub mutations_per_tick: StaticOrRandom,
+    /// Number of sync-updates per packet.
     #[arg(long, default_value_t = Self::default_num_sync_updates())]
     pub num_sync_updates: usize,
+    /// Coordinates of center cell (for distance priority calculations).
     #[arg(long, default_value_t = Self::default_center_cell())]
     pub center: CenterCell,
 }
@@ -60,7 +66,7 @@ pub enum StaticOrRandom {
 }
 
 impl StaticOrRandom {
-    pub(super) fn get(&self) -> u128 {
+    pub(crate) fn get(&self) -> u128 {
         match self {
             StaticOrRandom::Static(l) => *l,
             StaticOrRandom::RandomRange(range) => rand::random_range(range.clone()),

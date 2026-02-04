@@ -1,6 +1,6 @@
-use crate::{messages::MessageToClient, messages::MessageToServer, world::WorldCells};
+use crate::simulation::{messages::MessageToClient, messages::MessageToServer, world::WorldCells};
 
-pub(super) fn client_handle_message(
+pub(crate) fn client_handle_message(
     state: &mut WorldCells,
     message: MessageToClient,
 ) -> MessageToServer {

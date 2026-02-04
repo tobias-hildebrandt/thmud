@@ -4,13 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "cli"
-path = "src/bin/cli.rs"
-
-
-[[bin]]
-name = "tui"
-path = "src/bin/tui.rs"
+name = "sync-test"
+path = "src/bin/sync_test.rs"
 
 [dependencies]
 anyhow = "1.0.100"

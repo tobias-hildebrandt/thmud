@@ -5,12 +5,11 @@ use ratatui::{
     crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     layout::{Constraint, Direction, Layout},
     style::Stylize,
-    symbols::border,
     text::{Line, Text},
-    widgets::{Block, Paragraph, canvas::Canvas},
+    widgets::{Block, Paragraph},
 };
 
-use crate::{config::SyncTestConfig, sim::Sim};
+use crate::simulation::{config::SyncTestConfig, sim::Sim};
 
 #[derive(Debug)]
 pub struct Tui {
@@ -72,11 +71,11 @@ impl Tui {
         let server_world =
             Paragraph::new(Text::from(format!("{}", self.sim.server_world)).centered())
                 .centered()
-                .block(Block::bordered().title(Line::from("server").centered()));
+                .block(Block::bordered().title(Line::from(" server ").centered()));
         let client_world =
             Paragraph::new(Text::from(format!("{}", self.sim.client_world)).centered())
                 .centered()
-                .block(Block::bordered().title(Line::from("client").centered()));
+                .block(Block::bordered().title(Line::from(" client ").centered()));
 
         let top_level_layout = Layout::default()
             .direction(Direction::Vertical)
