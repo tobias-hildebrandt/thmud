@@ -4,12 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "sync-test"
-path = "src/bin/sync-test.rs"
+name = "cli"
+path = "src/bin/cli.rs"
+
+
+[[bin]]
+name = "tui"
+path = "src/bin/tui.rs"
 
 [dependencies]
 anyhow = "1.0.100"
 clap = { version = "4.5.57", default-features = true, features = ["derive"] }
 rand.workspace = true
+ratatui = "0.30.0"
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -1,11 +1,13 @@
+pub mod cli;
 mod client;
 pub mod config;
 mod messages;
-mod run;
 mod server;
+mod sim;
+pub mod tui;
 mod world;
 
-pub use run::run_sync_test;
+pub use cli::run_cli;
 
 /// Time in ticks.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
