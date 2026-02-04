@@ -14,7 +14,7 @@ pub(crate) struct Update<Id, State> {
 #[derive(Debug)]
 pub(crate) struct EntityUpdate<Id, State> {
     pub(crate) id: Id,
-    pub(crate) _priority: f32,
+    pub(crate) priority: f32,
     pub(crate) new_state: State,
 }
 
@@ -51,6 +51,11 @@ impl<Message> MessageQueue<Message> {
         self.0
             .make_contiguous()
             .sort_by(|first, second| first.tick_to_arrive.cmp(&second.tick_to_arrive));
+    }
+
+    /// Iterate over messages in the queue.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &TickMessage<Message>> {
+        self.0.iter()
     }
 }
 

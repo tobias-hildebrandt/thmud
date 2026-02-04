@@ -136,7 +136,7 @@ pub(crate) fn send_updates(
 
             EntityUpdate {
                 id: priority_calc.location,
-                _priority: priority_calc.priority,
+                priority: priority_calc.priority,
                 new_state: cell.state,
             }
         })

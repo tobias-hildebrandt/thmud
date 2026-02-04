@@ -6,13 +6,15 @@ use crate::simulation::{config::SyncTestConfig, sim::Sim};
 
 /// Config for the simple cli.
 #[derive(Debug, Parser)]
-pub struct SimpleCliConfig {
+pub struct SimpleCliArgs {
     /// How the cli should wait for the next tick.
     #[arg(long, default_value_t = Self::default_wait_for_tick())]
     pub wait_for_tick: WaitForTick,
+    #[command(flatten)]
+    pub config: SyncTestConfig,
 }
 
-impl SimpleCliConfig {
+impl SimpleCliArgs {
     fn default_wait_for_tick() -> WaitForTick {
         WaitForTick::Stdin
     }
@@ -66,8 +68,8 @@ impl WaitForTick {
     }
 }
 
-pub fn run_simple_cli(cli_config: SimpleCliConfig, config: SyncTestConfig) {
-    let mut sim = Sim::new(config);
+pub fn run_simple_cli(cli_config: SimpleCliArgs) {
+    let mut sim = Sim::new(cli_config.config);
 
     loop {
         cli_config.wait_for_tick.wait();

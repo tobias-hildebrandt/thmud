@@ -1,11 +1,8 @@
 use clap::{Parser, Subcommand};
 
-use crate::{
-    frontend::{
-        simple_cli::{SimpleCliConfig, run_simple_cli},
-        tui::Tui,
-    },
-    simulation::config::SyncTestConfig,
+use crate::frontend::{
+    simple_cli::{SimpleCliArgs, run_simple_cli},
+    tui::{Tui, TuiArgs},
 };
 
 /// All program arguments.
@@ -14,8 +11,6 @@ pub struct Arguments {
     /// Which frontend to use
     #[command(subcommand)]
     pub frontend: Frontend,
-    #[command(flatten)]
-    pub config: SyncTestConfig,
 }
 
 /// Which frontend to use
@@ -23,18 +18,18 @@ pub struct Arguments {
 pub enum Frontend {
     /// Run the simple cli.
     #[command(aliases = ["cli", "c"])]
-    SimpleCli(SimpleCliConfig),
+    SimpleCli(SimpleCliArgs),
     /// Run the terminal user interface.
     #[command(aliases = ["t"])]
-    Tui,
+    Tui(TuiArgs),
 }
 
 impl Frontend {
-    pub fn run(self, config: SyncTestConfig) {
+    pub fn run(self) {
         match self {
-            Frontend::SimpleCli(cli_config) => run_simple_cli(cli_config, config),
-            Frontend::Tui => {
-                ratatui::run(|terminal| Tui::new(config).run(terminal)).unwrap();
+            Frontend::SimpleCli(args) => run_simple_cli(args),
+            Frontend::Tui(args) => {
+                ratatui::run(|terminal| Tui::new(args).run(terminal)).unwrap();
             }
         }
     }

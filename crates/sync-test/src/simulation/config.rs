@@ -6,7 +6,7 @@ use clap::Parser;
 use crate::simulation::world::CellLocation;
 
 /// Simulation config.
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct SyncTestConfig {
     /// Size of world (one side of the square).
     #[arg(long, default_value_t = Self::default_world_size())]
