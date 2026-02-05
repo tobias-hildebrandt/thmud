@@ -1,6 +1,6 @@
 use crate::simulation::{
     client::client_handle_message,
-    config::SyncTestConfig,
+    config::SimConfig,
     messages::{MessageQueue, MessageToClient, MessageToServer},
     server::{WorldSyncState, send_updates, server_handle_message},
     world::{TwoWorldDisplay, WorldCells},
@@ -13,7 +13,7 @@ pub(crate) struct Tick(pub(crate) u128);
 // TODO: split server+client(s)
 #[derive(Debug)]
 pub(crate) struct Sim {
-    pub(crate) config: SyncTestConfig,
+    pub(crate) config: SimConfig,
     pub(crate) tick: Tick,
 
     // server
@@ -27,7 +27,7 @@ pub(crate) struct Sim {
 }
 
 impl Sim {
-    pub fn new(config: SyncTestConfig) -> Self {
+    pub fn new(config: SimConfig) -> Self {
         let server_world = WorldCells::new_random(config.world_size);
         let sync_states = WorldSyncState::new_default(config.world_size);
         let server_queue = MessageQueue::<MessageToServer>::new();

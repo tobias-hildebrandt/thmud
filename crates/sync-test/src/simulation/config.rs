@@ -1,31 +1,44 @@
 use std::{fmt::Display, ops::Range, str::FromStr};
 
 use anyhow::Context;
-use clap::Parser;
+use bpaf::Bpaf;
 
 use crate::simulation::world::CellLocation;
 
-/// Simulation config.
-#[derive(Debug, Clone, Parser)]
-pub struct SyncTestConfig {
-    /// Size of world (one side of the square).
-    #[arg(long, default_value_t = Self::default_world_size())]
+/// Simulation config
+#[derive(Debug, Clone, Bpaf)]
+#[bpaf(group_help("Simulation config:"), generate(config_parser))]
+pub struct SimConfig {
+    /// Size of world (one side of the square)
+    #[bpaf(
+        long("size"),
+        fallback(SimConfig::default_world_size()),
+        display_fallback
+    )]
     pub world_size: usize,
-    /// Simulated packet latency (static or range).
-    #[arg(long, default_value_t = Self::default_latency())]
+    /// Simulated packet latency (static or range)
+    #[bpaf(long, fallback(SimConfig::default_latency()), display_fallback)]
     pub latency: StaticOrRandom,
-    /// Server world mutations per tick (static or range).
-    #[arg(long, default_value_t = Self::default_mutations_per_tick())]
+    /// Server world mutations per tick (static or range)
+    #[bpaf(
+        long("mutations"),
+        fallback(SimConfig::default_mutations_per_tick()),
+        display_fallback
+    )]
     pub mutations_per_tick: StaticOrRandom,
-    /// Number of sync-updates per packet.
-    #[arg(long, default_value_t = Self::default_num_sync_updates())]
+    /// Number of sync-updates per packet
+    #[bpaf(
+        long("updates"),
+        fallback(SimConfig::default_num_sync_updates()),
+        display_fallback
+    )]
     pub num_sync_updates: usize,
-    /// Coordinates of center cell (for distance priority calculations).
-    #[arg(long, default_value_t = Self::default_center_cell())]
+    /// Coordinates of center cell (for distance priority calculations)
+    #[bpaf(long, fallback(SimConfig::default_center_cell()), display_fallback)]
     pub center: CenterCell,
 }
 
-impl SyncTestConfig {
+impl SimConfig {
     fn default_world_size() -> usize {
         16
     }
@@ -47,7 +60,7 @@ impl SyncTestConfig {
     }
 }
 
-impl Default for SyncTestConfig {
+impl Default for SimConfig {
     fn default() -> Self {
         Self {
             world_size: Self::default_world_size(),

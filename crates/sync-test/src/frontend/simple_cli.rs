@@ -1,22 +1,33 @@
 use std::{fmt::Display, io::Read, str::FromStr, time::Duration};
 
-use clap::Parser;
+use bpaf::Bpaf;
 
-use crate::simulation::{config::SyncTestConfig, sim::Sim};
+use crate::simulation::{config::SimConfig, sim::Sim};
 
-/// Config for the simple cli.
-#[derive(Debug, Parser)]
-pub struct SimpleCliArgs {
-    /// How the cli should wait for the next tick.
-    #[arg(long, default_value_t = Self::default_wait_for_tick())]
+/// Config for the simple cli
+#[derive(Debug, Clone, Bpaf)]
+#[bpaf(generate(simple_cli_config_parser))]
+pub struct SimpleCliConfig {
+    /// When to tick the simulation
+    #[bpaf(
+        long("tick"),
+        fallback(SimpleCliConfig::default_wait_for_tick()),
+        display_fallback
+    )]
     pub wait_for_tick: WaitForTick,
-    #[command(flatten)]
-    pub config: SyncTestConfig,
 }
 
-impl SimpleCliArgs {
+impl SimpleCliConfig {
     fn default_wait_for_tick() -> WaitForTick {
         WaitForTick::Stdin
+    }
+}
+
+impl Default for SimpleCliConfig {
+    fn default() -> Self {
+        Self {
+            wait_for_tick: Self::default_wait_for_tick(),
+        }
     }
 }
 
@@ -68,11 +79,12 @@ impl WaitForTick {
     }
 }
 
-pub fn run_simple_cli(cli_config: SimpleCliArgs) {
-    let mut sim = Sim::new(cli_config.config);
+/// Runs the simple CLI.
+pub fn run_simple_cli(args: SimpleCliConfig, config: SimConfig) {
+    let mut sim = Sim::new(config);
 
     loop {
-        cli_config.wait_for_tick.wait();
+        args.wait_for_tick.wait();
 
         sim.tick();
     }

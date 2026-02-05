@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use clap::Parser;
+use bpaf::Bpaf;
 use ratatui::{
     DefaultTerminal,
     buffer::Buffer,
@@ -12,67 +12,110 @@ use ratatui::{
 };
 
 use crate::simulation::{
-    config::SyncTestConfig,
+    config::SimConfig,
     messages::{MessageQueue, MessageToClient, MessageToServer},
     sim::Sim,
     world::{CellLocation, WorldCells},
 };
 
-#[derive(Debug, Parser)]
-pub struct TuiArgs {
-    #[command(flatten)]
-    pub config: SyncTestConfig,
-    // TODO: add sub-set of Tui struct
+#[derive(Debug, Clone, Bpaf)]
+#[bpaf(group_help("TUI options:"), generate(tui_config_parser))]
+pub struct TuiConfig {
+    /// Run the simulation on startup
+    #[bpaf(
+        switch,
+        long("start"),
+        fallback(TuiConfig::default_auto_tick()),
+        display_fallback
+    )]
+    pub auto_tick: bool,
+    /// Auto-tick delay (in millis)
+    #[bpaf(long("tick"), fallback(TuiConfig::default_auto_tick_duration().as_millis() as u64), display_fallback,
+    argument::<u64>, map(Duration::from_millis))]
+    pub auto_tick_duration: Duration,
+}
+
+impl TuiConfig {
+    fn default_auto_tick() -> bool {
+        false
+    }
+
+    fn default_auto_tick_duration() -> Duration {
+        Duration::from_millis(10)
+    }
+}
+
+impl Default for TuiConfig {
+    fn default() -> Self {
+        Self {
+            auto_tick: Self::default_auto_tick(),
+            auto_tick_duration: Self::default_auto_tick_duration(),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Tui {
-    exit: bool,
     sim: Sim,
-    config: SyncTestConfig,
-    auto_tick: bool,
-    auto_tick_duration: Duration,
+    inputs: TuiInputs,
+    tui_config: TuiConfig,
+}
+
+#[derive(Debug, Default)]
+struct TuiInputs {
+    exit: bool,
     manual_tick: bool,
     reset: bool,
 }
 
 impl Tui {
-    pub fn new(args: TuiArgs) -> Self {
+    pub fn new(tui_config: TuiConfig, sim_config: SimConfig) -> Self {
         Self {
-            exit: false,
-            sim: Sim::new(args.config.clone()),
-            config: args.config,
-            auto_tick: false,
-            auto_tick_duration: Duration::from_millis(10),
-            manual_tick: false,
-            reset: false,
+            sim: Sim::new(sim_config),
+            tui_config,
+            inputs: TuiInputs::default(),
         }
     }
 
+    /// Run the TUI.
+    ///
+    /// In general, this follows a classic read-evaluate-print loop.
     pub fn run(&mut self, term: &mut DefaultTerminal) -> std::io::Result<()> {
-        while !self.exit {
-            self.manual_tick = false;
-            self.reset = false;
+        // print first thing so we have something on the screen immediately
+        term.draw(|frame| frame.render_widget(&*self, frame.area()))?;
 
-            if self.auto_tick {
-                if event::poll(self.auto_tick_duration)? {
+        while !self.inputs.exit {
+            // reset button presses
+            self.inputs = Default::default();
+
+            // read
+            if self.tui_config.auto_tick {
+                // poll for events for the auto tick duration
+                if event::poll(self.tui_config.auto_tick_duration)? {
                     self.handle_events()?;
                 }
             } else {
+                // poll for events for a reasonable duration
                 #[allow(clippy::collapsible_else_if)]
                 if event::poll(Duration::from_millis(100))? {
                     self.handle_events()?;
                 }
             }
 
-            if self.auto_tick || self.manual_tick {
+            // evaluate
+            if self.tui_config.auto_tick || self.inputs.manual_tick {
                 self.sim.tick();
             }
 
-            if self.reset {
-                self.sim = Sim::new(self.config.clone());
+            if self.inputs.manual_tick {
+                self.tui_config.auto_tick = false;
             }
 
+            if self.inputs.reset {
+                self.sim = Sim::new(self.sim.config.clone());
+            }
+
+            // print
             term.draw(|frame| frame.render_widget(&*self, frame.area()))?;
         }
 
@@ -92,19 +135,20 @@ impl Tui {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
-            KeyCode::Char('q') | KeyCode::Char('c')
-                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                self.exit = true;
+            KeyCode::Char('c') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.inputs.exit = true;
+            }
+            KeyCode::Char('q') => {
+                self.inputs.exit = true;
             }
             KeyCode::Char(' ') => {
-                self.manual_tick = true;
+                self.inputs.manual_tick = true;
             }
             KeyCode::Char('t') => {
-                self.auto_tick = !self.auto_tick;
+                self.tui_config.auto_tick = !self.tui_config.auto_tick;
             }
             KeyCode::Char('r') => {
-                self.reset = true;
+                self.inputs.reset = true;
             }
             _ => {}
         }
@@ -119,9 +163,9 @@ impl Widget for &Tui {
         // TODO: just pass around immutable reference to self?
 
         let top_bar = TopBar {
-            auto_tick: &self.auto_tick,
-            manual_tick: &self.manual_tick,
-            reset: &self.reset,
+            auto_tick: &self.tui_config.auto_tick,
+            manual_tick: &self.inputs.manual_tick,
+            reset: &self.inputs.reset,
             tick: &self.sim.tick.0,
         };
 
@@ -213,7 +257,7 @@ impl<'a> Widget for TopBar<'a> {
 
         let keybinds = Line::from(vec![
             " Quit ".into(),
-            "<Ctrl+C/Ctrl+Q>".blue().bold(),
+            "<Q/Ctrl+C>".blue().bold(),
             auto_tick,
             "<T>".blue().bold(),
             manual_tick,

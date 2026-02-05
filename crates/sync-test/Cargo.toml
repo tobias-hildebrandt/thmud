@@ -9,7 +9,7 @@ path = "src/bin/sync_test.rs"
 
 [dependencies]
 anyhow = "1.0.100"
-clap = { version = "4.5.57", default-features = true, features = ["derive"] }
+bpaf = { version = "0.9.23", features = ["derive"] }
 rand.workspace = true
 ratatui = "0.30.0"
 tracing.workspace = true
