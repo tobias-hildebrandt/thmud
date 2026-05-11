@@ -10,6 +10,7 @@ path = "src/bin/sync_test.rs"
 [dependencies]
 anyhow = "1.0.100"
 bpaf = { version = "0.9.23", features = ["derive"] }
+colorgrad = "0.8.0"
 rand.workspace = true
 ratatui = "0.30.0"
 tracing.workspace = true

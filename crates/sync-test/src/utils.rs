@@ -1,3 +1,5 @@
-pub(crate) fn square(float: f32) -> f32 {
-    float * float
+use std::ops::Mul;
+
+pub(crate) fn square<T: Copy + Mul<Output = T>>(num: T) -> T {
+    num * num
 }

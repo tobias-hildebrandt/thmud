@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::simulation::{sim::Tick, world::CellLocation};
+use crate::simulation::{priority::Priority, sim::Tick, world::CellLocation};
 
 /// A whole-state update.
 #[derive(Debug)]
@@ -14,10 +14,11 @@ pub(crate) struct Update<Id, State> {
 #[derive(Debug)]
 pub(crate) struct EntityUpdate<Id, State> {
     pub(crate) id: Id,
-    pub(crate) priority: f32,
+    pub(crate) priority: Priority,
     pub(crate) new_state: State,
 }
 
+// TODO: add packet drop chance
 #[derive(Debug)]
 pub(crate) struct MessageQueue<Message>(VecDeque<TickMessage<Message>>);
 
@@ -50,7 +51,7 @@ impl<Message> MessageQueue<Message> {
         // sort
         self.0
             .make_contiguous()
-            .sort_by(|first, second| first.tick_to_arrive.cmp(&second.tick_to_arrive));
+            .sort_by_key(|first| first.tick_to_arrive);
     }
 
     /// Iterate over messages in the queue.

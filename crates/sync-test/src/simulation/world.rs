@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellLocation {
     pub row: usize,
     pub column: usize,
@@ -6,14 +6,20 @@ pub struct CellLocation {
 
 #[derive(Debug)]
 pub struct WorldData<Data> {
-    pub(crate) world_size: usize,
     pub data: Box<[Box<[Data]>]>,
+}
+
+impl<Data> WorldData<Data> {
+    pub fn world_size(&self) -> usize {
+        self.data.len()
+    }
+
+    // TODO: getter that takes CellLocation
 }
 
 impl<Data: Default> WorldData<Data> {
     pub(crate) fn new(world_size: usize, generate: impl Fn(usize, usize) -> Data) -> Self {
         Self {
-            world_size,
             data: (0..world_size)
                 .map(|row| {
                     Vec::from_iter((0..world_size).map(|column| generate(row, column)))
@@ -38,8 +44,9 @@ impl WorldCells {
         })
     }
     pub(crate) fn random_mutation(&mut self) {
-        let row = rand::random_range(0..self.world_size);
-        let column = rand::random_range(0..self.world_size);
+        let world_size = self.world_size();
+        let row = rand::random_range(0..world_size);
+        let column = rand::random_range(0..world_size);
 
         self.data[row][column].state = rand::random();
     }
@@ -65,7 +72,7 @@ pub(crate) struct TwoWorldDisplay<'a> {
 
 impl<'a> std::fmt::Display for TwoWorldDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let world_size = self.server.world_size;
+        let world_size = self.server.world_size();
 
         // each row takes up 2 hex chars and a space
         let row_print_len = world_size * 3;

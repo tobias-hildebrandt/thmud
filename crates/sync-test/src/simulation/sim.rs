@@ -1,9 +1,6 @@
 use crate::simulation::{
-    client::client_handle_message,
-    config::SimConfig,
-    messages::{MessageQueue, MessageToClient, MessageToServer},
-    server::{WorldSyncState, send_updates, server_handle_message},
-    world::{TwoWorldDisplay, WorldCells},
+    client::Client, config::SimConfig, server::Server, sync::WorldInFlightSyncStatus,
+    world::TwoWorldDisplay,
 };
 
 /// Time in ticks.
@@ -17,97 +14,83 @@ pub(crate) struct Sim {
     pub(crate) tick: Tick,
 
     // server
-    pub(crate) server_world: WorldCells,
-    pub(crate) sync_states: WorldSyncState,
-    pub(crate) server_queue: MessageQueue<MessageToServer>,
-
+    pub(crate) server: Server,
     // client
-    pub(crate) client_world: WorldCells,
-    pub(crate) client_queue: MessageQueue<MessageToClient>,
+    pub(crate) client: Client,
+
+    // calculated
+    pub(crate) sync_status: WorldInFlightSyncStatus,
 }
 
 impl Sim {
     pub fn new(config: SimConfig) -> Self {
-        let server_world = WorldCells::new_random(config.world_size);
-        let sync_states = WorldSyncState::new_default(config.world_size);
-        let server_queue = MessageQueue::<MessageToServer>::new();
+        let server = Server::new_random(config.world_size);
 
-        let client_world = WorldCells::new_default(config.world_size);
-        let client_queue = MessageQueue::<MessageToClient>::new();
+        let client = Client::new(config.world_size);
+
+        let sync_status = WorldInFlightSyncStatus::new_default(config.world_size);
 
         let tick: Tick = Tick(0);
 
         Self {
             config,
             tick,
-            server_world,
-            sync_states,
-            server_queue,
-            client_world,
-            client_queue,
+            server,
+            client,
+            sync_status,
         }
     }
 
     pub fn tick(&mut self) {
         tracing::info!("tick {:?}", self.tick);
 
-        // mutate server world
-        let mutations = self.config.mutations_per_tick.get();
-        tracing::debug!("mutations this tick: {}", mutations);
-        for _ in 0..mutations {
-            self.server_world.random_mutation();
-        }
+        // server handles messages
+        self.server.handle_messages(self.tick);
 
-        // server handle messages
-        while let Some(message) = self.server_queue.try_pop(self.tick) {
-            server_handle_message(&mut self.sync_states, message);
-        }
+        // mutate server
+        self.server.mutate(self.config.mutations_per_tick.get());
 
-        // server send changes
-        {
-            let message_to_client = send_updates(
-                self.tick,
-                &self.server_world,
-                &mut self.sync_states,
-                self.config.num_sync_updates,
-                &self.config.center.0,
-            );
-            let updates_str = message_to_client
-                .updates
-                .iter()
-                .fold(String::new(), |accum, next| {
-                    format!("{}, {:?}", accum, next)
-                });
-            tracing::debug!("server sending updates: {}", updates_str);
-            self.client_queue.push(
-                message_to_client,
-                Tick(self.tick.0 + self.config.latency.get()),
-            );
-        }
+        // calculate priorities
+        self.server
+            .calculate_priorities(self.tick, &self.config.center.0);
+
+        // server sends a message
+        let server_message = self
+            .server
+            .send_updates(self.tick, self.config.num_sync_updates);
+        self.client.message_queue.push(
+            server_message,
+            Tick(self.tick.0 + self.config.latency.get()),
+        );
 
         // client handle messages and sends acks
-        while let Some(message) = self.client_queue.try_pop(self.tick) {
-            let message_to_server = client_handle_message(&mut self.client_world, message);
-            // client sends acks
-            self.server_queue.push(
-                message_to_server,
-                Tick(self.tick.0 + self.config.latency.get()),
-            );
+        for message in self.client.handle_messages(self.tick) {
+            self.server
+                .message_queue
+                .push(message, Tick(self.tick.0 + self.config.latency.get()));
         }
 
         // print states
-        // tracing::info!("server:\n{}\nclient:\n{}", server_world, client_world);
         tracing::info!(
             "\n{}",
             TwoWorldDisplay {
-                server: &self.server_world,
-                client: &self.client_world
+                server: &self.server.world,
+                client: &self.client.world,
             }
         );
-        tracing::debug!("messages in flight to server: {:?}", self.server_queue);
-        tracing::debug!("messages in flight to client: {:?}", self.client_queue);
+        tracing::debug!(
+            "messages in flight to server: {:?}",
+            self.server.message_queue
+        );
+        tracing::debug!(
+            "messages in flight to client: {:?}",
+            self.client.message_queue
+        );
 
-        // compare states, accumulate stats
+        // compare states
+        self.sync_status.update(&self.server, &self.client);
+
+        // TODO: track statistics
 
         self.tick.0 += 1;
     }

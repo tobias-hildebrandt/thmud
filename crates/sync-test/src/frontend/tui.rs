@@ -1,6 +1,7 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use bpaf::Bpaf;
+use colorgrad::{Gradient, GradientBuilder, LinearGradient};
 use ratatui::{
     DefaultTerminal,
     buffer::Buffer,
@@ -11,11 +12,16 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-use crate::simulation::{
-    config::SimConfig,
-    messages::{MessageQueue, MessageToClient, MessageToServer},
-    sim::Sim,
-    world::{CellLocation, WorldCells},
+use crate::{
+    simulation::{
+        config::SimConfig,
+        messages::{MessageQueue, MessageToClient, MessageToServer},
+        priority::WorldPriority,
+        sim::{Sim, Tick},
+        sync::{InFlightSyncStatus, WorldInFlightSyncStatus},
+        world::{CellLocation, WorldCells},
+    },
+    utils::square,
 };
 
 #[derive(Debug, Clone, Bpaf)]
@@ -169,22 +175,28 @@ impl Widget for &Tui {
             tick: &self.sim.tick.0,
         };
 
-        let server_world = SimpleWorldCellsWidget {
+        let server_world = WorldCellPriorityWidget {
             name: "server",
-            world: &self.sim.server_world,
+            world: &self.sim.server.world,
+            priorities: &self.sim.server.priorities,
         };
-        let client_world = SimpleWorldCellsWidget {
+        let client_world = WorldCellSyncWidget {
             name: "client",
-            world: &self.sim.client_world,
+            world: &self.sim.client.world,
+            sync: &self.sim.sync_status,
         };
 
         let server_queue = MessageQueueWidget {
             name: "server",
-            queue: &self.sim.server_queue,
+            queue: &self.sim.server.message_queue,
         };
         let client_queue = MessageQueueWidget {
             name: "client",
-            queue: &self.sim.client_queue,
+            queue: &self.sim.client.message_queue,
+        };
+
+        let priority = PriorityListWidget {
+            priority: &self.sim.server.priorities,
         };
 
         let top_level_layout = Layout::default()
@@ -194,25 +206,31 @@ impl Widget for &Tui {
                 Constraint::Fill(2),
             ]);
 
-        let horizontal_50_50 = Layout::default()
+        let horizontal_split = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)]);
 
-        let vertical_70_30 = Layout::default()
+        let vertical_split = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)]);
+            .constraints(vec![
+                Constraint::Percentage(70),
+                Constraint::Length(1),
+                Constraint::Percentage(30),
+            ]);
 
         let [top_area, main_area] = top_level_layout.areas(area);
-        let [server_area, client_area] = horizontal_50_50.areas(main_area);
 
-        let [server_world_area, server_queue_area] = vertical_70_30.areas(server_area);
-        let [client_world_area, client_queue_area] = vertical_70_30.areas(client_area);
+        let [world_area, priority_area, queue_area] = vertical_split.areas(main_area);
+
+        let [server_world_area, client_world_area] = horizontal_split.areas(world_area);
+        let [server_queue_area, client_queue_area] = horizontal_split.areas(queue_area);
 
         top_bar.render(top_area, buf);
         client_world.render(client_world_area, buf);
         server_world.render(server_world_area, buf);
         client_queue.render(client_queue_area, buf);
         server_queue.render(server_queue_area, buf);
+        priority.render(priority_area, buf);
     }
 }
 
@@ -275,19 +293,129 @@ impl<'a> Widget for TopBar<'a> {
     }
 }
 
-struct SimpleWorldCellsWidget<'a> {
+struct WorldCellSyncWidget<'a> {
     name: &'a str,
     world: &'a WorldCells,
+    sync: &'a WorldInFlightSyncStatus,
 }
 
-impl<'a> Widget for SimpleWorldCellsWidget<'a> {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+impl<'a> Widget for WorldCellSyncWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
     {
-        let para = Paragraph::new(Text::from(self.world.to_string()).centered())
-            .centered()
-            .block(Block::bordered().title(Line::from(format!(" {} ", self.name)).centered()));
+        let mut text = Text::default();
+        let world_size = self.world.world_size();
+        for row in 0..world_size {
+            let mut line = Line::default();
+            for column in 0..world_size {
+                let value = self.world.data[row][column].state;
+                let sync = &self.sync.data[row][column];
+                let sync_color = Into::<Color>::into(sync);
+
+                let span = format!("{:02x}", value).fg(sync_color);
+                line.push_span(span);
+            }
+            text.push_line(line);
+        }
+
+        let para = Paragraph::new(text.centered()).centered().block(
+            Block::bordered()
+                .title(Line::from(format!(" {} (sync status) ", self.name)).centered()),
+        );
+
+        para.render(area, buf);
+    }
+}
+
+struct WorldCellPriorityWidget<'a> {
+    name: &'a str,
+    world: &'a WorldCells,
+    priorities: &'a WorldPriority,
+}
+
+impl<'a> Widget for WorldCellPriorityWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    where
+        Self: Sized,
+    {
+        //TODO: move up
+        let priority_curve = GradientBuilder::new()
+            .colors(&[
+                colorgrad::Color::from_rgba8(255, 0, 0, 255),
+                colorgrad::Color::from_rgba8(0, 255, 0, 255),
+            ])
+            .build::<LinearGradient>()
+            .expect("unable to build priority color gradient");
+
+        let max_priority = self
+            .priorities
+            .data
+            .iter()
+            .flatten()
+            .map(|p| p.0)
+            .sum::<f32>()
+            / (square(self.priorities.world_size()) as f32);
+
+        let mut text = Text::default();
+        let world_size = self.world.world_size();
+        for row in 0..world_size {
+            let mut line = Line::default();
+            for column in 0..world_size {
+                let value = self.world.data[row][column].state;
+                let priority = &self.priorities.data[row][column];
+
+                let color = if max_priority == 0.0 {
+                    Color::Gray
+                } else {
+                    let relative_priority = priority.0 / max_priority;
+                    let colorgrad_color = priority_curve.at(relative_priority).to_css_hex();
+                    Color::from_str(&colorgrad_color)
+                        .expect("conversion between colorgrad and ratataui colors failed")
+                };
+
+                let span = format!("{:02x}", value).fg(color);
+                line.push_span(span);
+            }
+            text.push_line(line);
+        }
+
+        let para = Paragraph::new(text.centered()).centered().block(
+            Block::bordered().title(Line::from(format!(" {} (priority) ", self.name)).centered()),
+        );
+
+        para.render(area, buf);
+    }
+}
+
+struct PriorityListWidget<'a> {
+    priority: &'a WorldPriority,
+}
+
+impl<'a> Widget for PriorityListWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+    where
+        Self: Sized,
+    {
+        let mut priorities = self.priority.cell_priorities().collect::<Vec<_>>();
+
+        priorities.sort_by(|first, second| second.priority.0.total_cmp(&first.priority.0));
+
+        let spans = priorities
+            .into_iter()
+            .flat_map(|priority| {
+                let location = Into::<Vec<Span<'static>>>::into(&priority.location);
+                let priority = format!("{:.2}", priority.priority.0).yellow();
+
+                let mut spans = vec![];
+                spans.extend(location);
+                spans.push(priority);
+                spans.push(" ".into());
+                spans
+            })
+            .collect::<Vec<_>>();
+
+        let para = Paragraph::new(Text::from(Line::from(spans)));
 
         para.render(area, buf);
     }
@@ -313,11 +441,7 @@ where
             .queue
             .iter()
             .map(|message| {
-                let mut spans = vec![
-                    "@".into(),
-                    format!("{:04}", message.tick_to_arrive.0).blue(),
-                    " ".into(),
-                ];
+                let mut spans = vec!["@".into(), message.tick_to_arrive.into(), " ".into()];
                 let inner_message_spans: Vec<Span<'static>> = (&message.message).into();
                 spans.extend(inner_message_spans);
                 Line::from(spans)
@@ -326,7 +450,7 @@ where
 
         let para = Paragraph::new(Text::from(lines)).block(
             Block::bordered()
-                .title(Line::from(format!(" packets in flight to {}", self.name)).centered()),
+                .title(Line::from(format!(" packets in flight to {} ", self.name)).centered()),
         );
 
         para.render(area, buf);
@@ -347,9 +471,19 @@ impl From<&CellLocation> for Vec<Span<'static>> {
     }
 }
 
+impl From<Tick> for Span<'static> {
+    fn from(tick: Tick) -> Self {
+        format!("{:04}", tick.0).blue()
+    }
+}
+
 impl From<&MessageToServer> for Vec<Span<'static>> {
     fn from(message: &MessageToServer) -> Self {
-        let ack = ["ack".into(), message.ack.0.to_string().blue(), " ".into()];
+        let ack = [
+            "ack".into(),
+            Into::<Span>::into(message.ack).red(),
+            " ".into(),
+        ];
 
         let cells = message.cells.iter().map(Into::<Vec<Span<'static>>>::into);
 
@@ -361,14 +495,14 @@ impl From<&MessageToClient> for Vec<Span<'static>> {
     fn from(message: &MessageToClient) -> Self {
         let tick = [
             "tick".into(),
-            format!("{:04}", message.tick.0).red(),
+            Into::<Span>::into(message.tick).red(),
             " ".into(),
         ];
 
         let updates = message.updates.iter().map(|update| {
             let location = Into::<Vec<Span<'static>>>::into(&update.id);
             let state = format!("{:02x}", update.new_state).magenta();
-            let priority = format!("{:.2}", update.priority).yellow();
+            let priority = format!("{:.2}", update.priority.0).yellow();
 
             let mut spans = vec![];
             spans.extend(location);
@@ -381,5 +515,30 @@ impl From<&MessageToClient> for Vec<Span<'static>> {
         tick.into_iter()
             .chain(updates.flatten())
             .collect::<Vec<_>>()
+    }
+}
+
+impl From<&InFlightSyncStatus> for Color {
+    fn from(value: &InFlightSyncStatus) -> Self {
+        match (
+            value.same,
+            value.update_in_flight.old,
+            value.update_in_flight.current,
+        ) {
+            // up to date, nothing in flight
+            (true, false, false) => Color::Green,
+            // up to date, useless copy in flight
+            (true, false, true) => Color::LightGreen,
+            // up to date, but old in flight ??
+            (true, true, false) => Color::Yellow,
+            // up to date but both old and new in flight??
+            (true, true, true) => Color::Magenta,
+            // not up to date but current update in flight
+            (false, _, true) => Color::LightYellow,
+            // not update to date but old in flight
+            (false, true, false) => Color::Blue,
+            // not synced
+            (false, false, false) => Color::Red,
+        }
     }
 }
